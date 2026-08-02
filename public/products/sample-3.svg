@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="450" viewBox="0 0 600 450" role="img" aria-label="Ảnh sản phẩm mẫu Linh kiện">
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#eb6834"/><stop offset="1" stop-color="#eda100"/></linearGradient></defs>
+<rect width="600" height="450" fill="url(#g)"/>
+<rect x="200" y="150" width="200" height="200" rx="14" fill="#fff" opacity=".92"/><rect x="245" y="195" width="110" height="110" rx="8" fill="none" stroke="#fff" stroke-width="10" opacity=".55"/>
+<text x="300" y="420" font-family="system-ui,sans-serif" font-size="26" font-weight="600" fill="#fff" opacity=".9" text-anchor="middle">Linh kiện</text>
+</svg>
