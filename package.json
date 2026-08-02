@@ -1,6 +1,6 @@
 {
   "name": "d-computer-admin-client",
-  "version": "0.1.0",
+  "version": "0.1.0-202608022301",
   "private": true,
   "scripts": {
     "dev": "next dev",

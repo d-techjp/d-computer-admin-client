@@ -1,0 +1,16 @@
+services:
+  d-computer-admin-client:
+    platform: linux/amd64
+    image: tranhuuphuoc22/hthouse:d-computer-admin-client-1.0
+    container_name: d-computer-admin-client
+    restart: unless-stopped
+    ports:
+      - 5050:5050
+    expose:
+      - "5050"
+    networks:
+      - rampo-dev
+
+networks:
+  rampo-dev:
+    external: true
