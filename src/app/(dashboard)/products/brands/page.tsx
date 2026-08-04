@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { App, Button, Input, Modal, Space, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Pencil, Plus, Trash2 } from "lucide-react";
@@ -11,10 +11,9 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { TextField } from "@/components/form/fields";
 import { FormItemLayout } from "@/components/form/FormItemLayout";
 import { SearchFilterBar } from "@/components/form/SearchFilterBar";
-import { useListQuery } from "@/hooks/useListQuery";
-import { fakeMutate, matchText } from "@/lib/fakeFetch";
+import { createBrand, deleteBrand, listBrands, updateBrand } from "@/lib/api/products";
 import { formatNumber } from "@/lib/utils";
-import { brands } from "@/mock/catalog";
+import { DEFAULT_PAGE_SIZE } from "@/types/common";
 import type { Brand } from "@/types/product";
 
 interface BrandFilters {
@@ -23,31 +22,47 @@ interface BrandFilters {
 
 interface BrandFormValues {
   name: string;
-  slug: string;
-  country: string;
+  slug?: string;
+  country?: string;
 }
 
 export default function BrandsPage() {
   const { message, modal } = App.useApp();
+  const [rows, setRows] = useState<Brand[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState<BrandFilters>({ keyword: "" });
+  const [appliedFilters, setAppliedFilters] = useState<BrandFilters>({ keyword: "" });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<Brand | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const { rows, loading, filters, patchFilters, search, reset, pagination } =
-    useListQuery<Brand, BrandFilters>({
-      source: brands,
-      initialFilters: { keyword: "" },
-      buildFilters: (f) => [
-        matchText(f.keyword, (item) => [item.name, item.slug, item.country]),
-      ],
-      sorter: (a, b) => b.productCount - a.productCount,
-    });
+  const loadRows = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await listBrands({
+        page,
+        limit: pageSize,
+        search: appliedFilters.keyword,
+        sortBy: "createdAt",
+        sortOrder: "DESC",
+      });
+      setRows(response.data);
+      setTotal(response.total);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Không tải được thương hiệu");
+    } finally {
+      setLoading(false);
+    }
+  }, [appliedFilters.keyword, message, page, pageSize]);
 
-  const {
-    control,
-    handleSubmit,
-    reset: resetForm,
-  } = useForm<BrandFormValues>({
+  useEffect(() => {
+    queueMicrotask(() => void loadRows());
+  }, [loadRows]);
+
+  const { control, handleSubmit, reset: resetForm } = useForm<BrandFormValues>({
     defaultValues: { name: "", slug: "", country: "" },
   });
 
@@ -63,27 +78,60 @@ export default function BrandsPage() {
 
   const onSubmit = handleSubmit(async (values) => {
     setSubmitting(true);
-    await fakeMutate(values);
-    setSubmitting(false);
-    setModalOpen(false);
-    message.success(
-      editing
-        ? `Đã cập nhật thương hiệu ${values.name}`
-        : "Đã thêm thương hiệu mới",
-    );
+    try {
+      const payload = {
+        name: values.name,
+        slug: values.slug,
+        country: values.country,
+        isActive: true,
+      };
+
+      if (editing) {
+        await updateBrand(editing.id, payload);
+      } else {
+        await createBrand({ ...payload, name: values.name });
+      }
+
+      setModalOpen(false);
+      message.success(
+        editing ? `Đã cập nhật thương hiệu ${values.name}` : "Đã thêm thương hiệu mới",
+      );
+      await loadRows();
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Không lưu được thương hiệu");
+    } finally {
+      setSubmitting(false);
+    }
   });
+
+  const handleDelete = (record: Brand) => {
+    modal.confirm({
+      title: `Xoá thương hiệu ${record.name}?`,
+      content:
+        record.productCount > 0
+          ? `Thương hiệu đang gắn với ${record.productCount} sản phẩm.`
+          : "Thao tác không thể hoàn tác.",
+      okText: "Xoá",
+      cancelText: "Huỷ",
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        await deleteBrand(record.id);
+        message.success("Đã xoá thương hiệu");
+        await loadRows();
+      },
+    });
+  };
 
   const columns = useMemo<ColumnsType<Brand>>(
     () => [
       { title: "Thương hiệu", dataIndex: "name", width: 200 },
       { title: "Đường dẫn", dataIndex: "slug", width: 180 },
-      { title: "Xuất xứ", dataIndex: "country", width: 160 },
+      { title: "Xuất xứ", dataIndex: "country", width: 160, render: (value?: string) => value || "—" },
       {
         title: "Số sản phẩm",
         dataIndex: "productCount",
         width: 120,
         align: "right",
-        sorter: (a, b) => a.productCount - b.productCount,
         render: (value: number) => formatNumber(value),
       },
       {
@@ -94,38 +142,34 @@ export default function BrandsPage() {
         render: (_, record) => (
           <Space size="small">
             <Tooltip title="Sửa">
-              <Button
-                type="text"
-                size="small"
-                icon={<Pencil size={16} />}
-                onClick={() => openModal(record)}
-              />
+              <Button type="text" size="small" icon={<Pencil size={16} />} onClick={() => openModal(record)} />
             </Tooltip>
             <Tooltip title="Xoá">
-              <Button
-                type="text"
-                size="small"
-                danger
-                icon={<Trash2 size={16} />}
-                onClick={() =>
-                  modal.confirm({
-                    title: `Xoá thương hiệu ${record.name}?`,
-                    content: `Thương hiệu đang gắn với ${record.productCount} sản phẩm.`,
-                    okText: "Xoá",
-                    cancelText: "Huỷ",
-                    okButtonProps: { danger: true },
-                    onOk: () => message.success("Đã xoá thương hiệu"),
-                  })
-                }
-              />
+              <Button type="text" size="small" danger icon={<Trash2 size={16} />} onClick={() => handleDelete(record)} />
             </Tooltip>
           </Space>
         ),
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [message, modal],
+    [modal, message, loadRows],
   );
+
+  const patchFilters = (patch: Partial<BrandFilters>) => {
+    setFilters((current) => ({ ...current, ...patch }));
+  };
+
+  const search = () => {
+    setPage(1);
+    setAppliedFilters({ ...filters });
+  };
+
+  const reset = () => {
+    const next = { keyword: "" };
+    setPage(1);
+    setFilters(next);
+    setAppliedFilters(next);
+  };
 
   return (
     <>
@@ -133,11 +177,7 @@ export default function BrandsPage() {
         title="Thương hiệu"
         description="Danh sách hãng sản xuất đang phân phối tại cửa hàng"
         extra={
-          <Button
-            type="primary"
-            icon={<Plus size={16} />}
-            onClick={() => openModal()}
-          >
+          <Button type="primary" icon={<Plus size={16} />} onClick={() => openModal()}>
             Thêm thương hiệu
           </Button>
         }
@@ -159,7 +199,15 @@ export default function BrandsPage() {
         columns={columns}
         dataSource={rows}
         loading={loading}
-        pagination={pagination}
+        pagination={{
+          current: page,
+          pageSize,
+          total,
+          onChange: (nextPage, nextPageSize) => {
+            setPage(nextPage);
+            setPageSize(nextPageSize);
+          },
+        }}
       />
 
       <Modal
@@ -184,8 +232,7 @@ export default function BrandsPage() {
             name="slug"
             control={control}
             label="Đường dẫn"
-            required
-            rules={{ required: "Vui lòng nhập đường dẫn" }}
+            helpText="Bỏ trống để backend tự sinh từ tên thương hiệu"
           />
           <TextField name="country" control={control} label="Xuất xứ" />
         </div>

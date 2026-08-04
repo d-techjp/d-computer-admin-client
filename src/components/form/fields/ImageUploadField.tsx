@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { App, Button, Popconfirm, Tooltip } from "antd";
+import { App, Button, Tooltip } from "antd";
 import { ImagePlus, Star, Trash2, Upload } from "lucide-react";
 import type { FieldValues } from "react-hook-form";
 import { useController } from "react-hook-form";
@@ -15,12 +15,13 @@ import type { BaseFieldProps } from "./types";
 export interface UploadedImage {
   id: string;
   name: string;
-  /** Data URL đọc từ máy người dùng — khi có API thật sẽ thay bằng URL trả về */
+  /** Preview URL; ảnh mới giữ thêm `file` để submit multipart/form-data. */
   url: string;
   size: number;
+  file?: File;
 }
 
-const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/avif"];
+const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/avif", "image/gif"];
 const MAX_SIZE_MB = 5;
 
 function readAsDataUrl(file: File) {
@@ -42,8 +43,8 @@ interface ImageUploadFieldProps<T extends FieldValues> extends BaseFieldProps<T>
  * data URL rồi lưu vào giá trị của form. Hỗ trợ kéo-thả để thêm ảnh và kéo
  * để đổi thứ tự; ảnh đầu tiên được coi là ảnh đại diện.
  *
- * Khi nối API thật chỉ cần thay chỗ `readAsDataUrl` bằng lời gọi upload và
- * lưu URL trả về — phần còn lại giữ nguyên.
+ * Preview dùng data URL, còn file gốc vẫn được giữ trong value để submit
+ * multipart/form-data hoặc upload qua API.
  */
 export function ImageUploadField<T extends FieldValues>({
   name,
@@ -56,7 +57,7 @@ export function ImageUploadField<T extends FieldValues>({
   className,
   maxCount = 6,
 }: ImageUploadFieldProps<T>) {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -79,7 +80,7 @@ export function ImageUploadField<T extends FieldValues>({
 
       for (const file of Array.from(fileList).slice(0, room)) {
         if (!ACCEPTED.includes(file.type)) {
-          message.error(`${file.name}: chỉ nhận ảnh JPG, PNG, WEBP hoặc AVIF`);
+          message.error(`${file.name}: chỉ nhận ảnh JPG, PNG, WEBP, AVIF hoặc GIF`);
           continue;
         }
         if (file.size > MAX_SIZE_MB * 1024 * 1024) {
@@ -91,6 +92,7 @@ export function ImageUploadField<T extends FieldValues>({
           name: file.name,
           url: await readAsDataUrl(file),
           size: file.size,
+          file,
         });
       }
 
@@ -101,6 +103,16 @@ export function ImageUploadField<T extends FieldValues>({
 
   const removeAt = (index: number) =>
     field.onChange(images.filter((_, i) => i !== index));
+
+  const confirmRemoveAt = (index: number) => {
+    modal.confirm({
+      title: "Xoá ảnh này?",
+      okText: "Xoá",
+      cancelText: "Huỷ",
+      okButtonProps: { danger: true },
+      onOk: () => removeAt(index),
+    });
+  };
 
   /** Kéo ảnh sang vị trí khác để đổi thứ tự hiển thị */
   const moveTo = (from: number, to: number) => {
@@ -200,24 +212,17 @@ export function ImageUploadField<T extends FieldValues>({
                     {index + 1}/{images.length}
                   </span>
 
-                  <Popconfirm
-                    title="Xoá ảnh này?"
-                    okText="Xoá"
-                    cancelText="Huỷ"
-                    okButtonProps={{ danger: true }}
-                    onConfirm={() => removeAt(index)}
-                  >
-                    <Tooltip title="Xoá ảnh">
-                      <Button
-                        size="small"
-                        type="text"
-                        danger
-                        disabled={disabled}
-                        aria-label="Xoá ảnh"
-                        icon={<Trash2 size={15} />}
-                      />
-                    </Tooltip>
-                  </Popconfirm>
+                  <Tooltip title="Xoá ảnh">
+                    <Button
+                      size="small"
+                      type="text"
+                      danger
+                      disabled={disabled}
+                      aria-label="Xoá ảnh"
+                      icon={<Trash2 size={15} />}
+                      onClick={() => confirmRemoveAt(index)}
+                    />
+                  </Tooltip>
                 </figcaption>
               </figure>
             );

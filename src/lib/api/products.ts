@@ -3,6 +3,7 @@ import type { Brand, Category, Product, ProductSpec, ProductStatus } from "@/typ
 
 import { apiFetch, type QueryValue } from "./client";
 import {
+  compactPayload,
   parseListResponse,
   toListQuery,
   type ApiListParams,
@@ -18,6 +19,52 @@ export interface ListProductsParams extends ApiListParams {
   maxPrice?: number;
   inStock?: boolean;
   isFeatured?: boolean;
+}
+
+export interface ProductPayload {
+  name?: string;
+  slug?: string;
+  sku?: string;
+  shortDescription?: string;
+  description?: string;
+  price?: number;
+  compareAtPrice?: number;
+  costPrice?: number;
+  stock?: number;
+  lowStockThreshold?: number;
+  thumbnail?: string;
+  images?: string[];
+  specifications?: Record<string, string>;
+  status?: ProductStatus;
+  isFeatured?: boolean;
+  categoryId?: string;
+  brandId?: string;
+}
+
+export interface ProductImageInput {
+  url: string;
+  file?: File;
+}
+
+export interface CategoryPayload {
+  name?: string;
+  slug?: string;
+  description?: string;
+  imageUrl?: string;
+  parentId?: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export interface BrandPayload {
+  name?: string;
+  slug?: string;
+  description?: string;
+  logoUrl?: string;
+  website?: string;
+  country?: string;
+  sortOrder?: number;
+  isActive?: boolean;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -140,15 +187,113 @@ export function deleteProduct(id: string) {
   return apiFetch<void>(`/api/v1/products/${id}`, { method: "DELETE" });
 }
 
-export function listCategories(params: ApiListParams & { isActive?: boolean } = { page: 1, limit: 100 }) {
+export function fetchProduct(id: string) {
+  return apiFetch<unknown>(`/api/v1/products/${id}`).then(toProduct);
+}
+
+function appendIfPresent(formData: FormData, key: string, value: unknown) {
+  if (value === undefined || value === null || value === "") return;
+  formData.append(key, typeof value === "object" ? JSON.stringify(value) : String(value));
+}
+
+function buildProductFormData(payload: ProductPayload, images: ProductImageInput[]) {
+  const formData = new FormData();
+
+  appendIfPresent(formData, "name", payload.name);
+  appendIfPresent(formData, "slug", payload.slug);
+  appendIfPresent(formData, "sku", payload.sku);
+  appendIfPresent(formData, "shortDescription", payload.shortDescription);
+  appendIfPresent(formData, "description", payload.description);
+  appendIfPresent(formData, "price", payload.price);
+  appendIfPresent(formData, "compareAtPrice", payload.compareAtPrice);
+  appendIfPresent(formData, "costPrice", payload.costPrice);
+  appendIfPresent(formData, "stock", payload.stock);
+  appendIfPresent(formData, "lowStockThreshold", payload.lowStockThreshold);
+  appendIfPresent(formData, "specifications", payload.specifications);
+  appendIfPresent(formData, "status", payload.status);
+  appendIfPresent(formData, "isFeatured", payload.isFeatured);
+  appendIfPresent(formData, "categoryId", payload.categoryId);
+  appendIfPresent(formData, "brandId", payload.brandId);
+
+  const [thumbnail, ...gallery] = images;
+  if (thumbnail?.file) {
+    formData.append("thumbnailFile", thumbnail.file);
+  } else {
+    appendIfPresent(formData, "thumbnail", thumbnail?.url ?? payload.thumbnail);
+  }
+
+  for (const image of gallery) {
+    if (image.file) {
+      formData.append("imagesFiles", image.file);
+    } else {
+      appendIfPresent(formData, "images", image.url);
+    }
+  }
+
+  return formData;
+}
+
+export function createProductMultipart(
+  payload: Required<Pick<ProductPayload, "name" | "sku" | "price">> & ProductPayload,
+  images: ProductImageInput[],
+) {
+  return apiFetch<unknown>("/api/v1/products", {
+    method: "POST",
+    body: buildProductFormData(payload, images),
+  }).then(toProduct);
+}
+
+export function updateProduct(id: string, payload: ProductPayload) {
+  return apiFetch<unknown>(`/api/v1/products/${id}`, {
+    method: "PATCH",
+    body: compactPayload(payload),
+  }).then(toProduct);
+}
+
+export function updateProductMultipart(id: string, payload: ProductPayload, images: ProductImageInput[]) {
+  return apiFetch<unknown>(`/api/v1/products/${id}`, {
+    method: "PATCH",
+    body: buildProductFormData(payload, images),
+  }).then(toProduct);
+}
+
+export function listCategories(
+  params: ApiListParams & { parentId?: string; rootOnly?: boolean; isActive?: boolean } = {
+    page: 1,
+    limit: 100,
+  },
+) {
   return apiFetch<unknown>("/api/v1/categories", {
-    query: { ...toListQuery(params), isActive: params.isActive },
+    query: {
+      ...toListQuery(params),
+      parentId: params.parentId,
+      rootOnly: params.rootOnly,
+      isActive: params.isActive,
+    },
   }).then((payload) =>
     parseListResponse(payload, toCategory, {
       page: params.page,
       pageSize: params.limit,
     }),
   );
+}
+
+export function createCategory(payload: Required<Pick<CategoryPayload, "name">> & CategoryPayload) {
+  return apiFetch<unknown>("/api/v1/categories", {
+    method: "POST",
+    body: compactPayload(payload),
+  }).then(toCategory);
+}
+
+export function updateCategory(id: string, payload: CategoryPayload) {
+  return apiFetch<unknown>(`/api/v1/categories/${id}`, {
+    method: "PATCH",
+    body: compactPayload(payload),
+  }).then(toCategory);
+}
+
+export function deleteCategory(id: string) {
+  return apiFetch<void>(`/api/v1/categories/${id}`, { method: "DELETE" });
 }
 
 export function listBrands(params: ApiListParams & { isActive?: boolean } = { page: 1, limit: 100 }) {
@@ -160,6 +305,24 @@ export function listBrands(params: ApiListParams & { isActive?: boolean } = { pa
       pageSize: params.limit,
     }),
   );
+}
+
+export function createBrand(payload: Required<Pick<BrandPayload, "name">> & BrandPayload) {
+  return apiFetch<unknown>("/api/v1/brands", {
+    method: "POST",
+    body: compactPayload(payload),
+  }).then(toBrand);
+}
+
+export function updateBrand(id: string, payload: BrandPayload) {
+  return apiFetch<unknown>(`/api/v1/brands/${id}`, {
+    method: "PATCH",
+    body: compactPayload(payload),
+  }).then(toBrand);
+}
+
+export function deleteBrand(id: string) {
+  return apiFetch<void>(`/api/v1/brands/${id}`, { method: "DELETE" });
 }
 
 export function categoryOptionsFrom(categories: Category[]): SelectOption[] {

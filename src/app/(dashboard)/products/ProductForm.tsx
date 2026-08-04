@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { App, Button, Input, Tooltip } from "antd";
 import { GripVertical, Plus, Trash2 } from "lucide-react";
@@ -18,9 +18,19 @@ import {
 } from "@/components/form/fields";
 import { FormItemLayout } from "@/components/form/FormItemLayout";
 import routes from "@/config/routes";
-import { fakeMutate } from "@/lib/fakeFetch";
+import {
+  brandOptionsFrom,
+  categoryOptionsFrom,
+  createProductMultipart,
+  fetchProduct,
+  listBrands,
+  listCategories,
+  updateProduct,
+  updateProductMultipart,
+  type ProductImageInput,
+} from "@/lib/api/products";
 import { cn } from "@/lib/utils";
-import { brandOptions, categoryOptions } from "@/mock/catalog";
+import type { SelectOption } from "@/types/common";
 import {
   DEFAULT_SPEC_LABELS,
   type Product,
@@ -64,6 +74,18 @@ function toFormValues(product?: Product): ProductFormValues {
     description: product?.description ?? "",
     active: product ? product.status === "active" : true,
   };
+}
+
+function toSpecifications(specs: ProductSpec[]) {
+  return Object.fromEntries(
+    specs
+      .filter((spec) => spec.label.trim() && spec.value.trim())
+      .map((spec) => [spec.label.trim(), spec.value.trim()]),
+  );
+}
+
+function productImages(images: UploadedImage[]): ProductImageInput[] {
+  return images.map((image) => ({ url: image.url, file: image.file })).filter((image) => image.url || image.file);
 }
 
 /**
@@ -185,6 +207,7 @@ function SpecListField({
 
 interface ProductFormProps {
   product?: Product;
+  productId?: string;
 }
 
 /**
@@ -192,27 +215,113 @@ interface ProductFormProps {
  * wrapper react-hook-form + antd, nhóm theo khối như bản gốc từng bố cục
  * (thông tin chung / ảnh / giá & kho / thông số kỹ thuật).
  */
-export function ProductForm({ product }: ProductFormProps) {
+export function ProductForm({ product: initialProduct, productId }: ProductFormProps) {
   const router = useRouter();
   const { message } = App.useApp();
+  const [product, setProduct] = useState<Product | undefined>(initialProduct);
+  const [loadingProduct, setLoadingProduct] = useState(!!productId && !initialProduct);
   const [submitting, setSubmitting] = useState(false);
+  const [loadingOptions, setLoadingOptions] = useState(true);
+  const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([]);
+  const [brandOptions, setBrandOptions] = useState<SelectOption[]>([]);
 
-  const isEdit = !!product;
+  const isEdit = !!productId || !!product;
 
   const { control, handleSubmit, reset } = useForm<ProductFormValues>({
     defaultValues: toFormValues(product),
   });
 
+  useEffect(() => {
+    if (!productId || initialProduct) return;
+
+    let cancelled = false;
+    fetchProduct(productId)
+      .then((nextProduct) => {
+        if (cancelled) return;
+        setProduct(nextProduct);
+        reset(toFormValues(nextProduct));
+      })
+      .catch((error) => {
+        message.error(error instanceof Error ? error.message : "Không tải được sản phẩm");
+        router.push(routes.products.index);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingProduct(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initialProduct, message, productId, reset, router]);
+
+  useEffect(() => {
+    Promise.all([
+      listCategories({ page: 1, limit: 100, sortBy: "name", sortOrder: "ASC", isActive: true }),
+      listBrands({ page: 1, limit: 100, sortBy: "name", sortOrder: "ASC", isActive: true }),
+    ])
+      .then(([categories, brands]) => {
+        setCategoryOptions(categoryOptionsFrom(categories.data));
+        setBrandOptions(brandOptionsFrom(brands.data));
+      })
+      .catch(() => {
+        setCategoryOptions([]);
+        setBrandOptions([]);
+      })
+      .finally(() => setLoadingOptions(false));
+  }, []);
+
   const onSubmit = handleSubmit(async (values) => {
     setSubmitting(true);
-    // Bỏ những dòng thông số để trống trước khi lưu
-    await fakeMutate({
-      ...values,
-      specs: values.specs.filter((spec) => spec.label.trim() && spec.value.trim()),
-    });
-    setSubmitting(false);
-    message.success(isEdit ? "Đã cập nhật sản phẩm" : "Đã tạo sản phẩm mới");
-    router.push(routes.products.index);
+    try {
+      const images = productImages(values.images);
+      const urls = images.map((image) => image.url).filter(Boolean);
+      const payload = {
+        name: values.name,
+        sku: values.sku,
+        description: values.description,
+        price: values.price,
+        costPrice: values.cost,
+        stock: values.stock ?? 0,
+        thumbnail: urls[0],
+        images: urls.slice(1),
+        specifications: toSpecifications(values.specs),
+        status: values.active ? "active" : "draft",
+        categoryId: values.categoryId,
+        brandId: values.brandId,
+      } as const;
+
+      if (isEdit) {
+        const id = product?.id ?? productId;
+        if (!id) {
+          message.error("Không xác định được sản phẩm cần cập nhật");
+          return;
+        }
+        if (images.some((image) => image.file)) {
+          await updateProductMultipart(id, payload, images);
+        } else {
+          await updateProduct(id, payload);
+        }
+      } else {
+        if (payload.price === undefined) {
+          message.error("Vui lòng nhập giá bán");
+          return;
+        }
+        const createPayload = {
+          ...payload,
+          name: payload.name,
+          sku: payload.sku,
+          price: payload.price,
+        };
+        await createProductMultipart(createPayload, images);
+      }
+
+      message.success(isEdit ? "Đã cập nhật sản phẩm" : "Đã tạo sản phẩm mới");
+      router.push(routes.products.index);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Không lưu được sản phẩm");
+    } finally {
+      setSubmitting(false);
+    }
   });
 
   return (
@@ -221,7 +330,9 @@ export function ProductForm({ product }: ProductFormProps) {
         title={isEdit ? "Chỉnh sửa sản phẩm" : "Thêm sản phẩm"}
         description={
           isEdit
-            ? `Cập nhật thông tin cho ${product.name}`
+            ? product
+              ? `Cập nhật thông tin cho ${product.name}`
+              : "Đang tải thông tin sản phẩm"
             : "Điền thông tin để thêm sản phẩm vào danh mục"
         }
         breadcrumb={[
@@ -232,11 +343,11 @@ export function ProductForm({ product }: ProductFormProps) {
           <>
             <Button
               onClick={() => reset(toFormValues(product))}
-              disabled={submitting}
+              disabled={submitting || loadingProduct}
             >
               Khôi phục
             </Button>
-            <Button type="primary" htmlType="submit" loading={submitting}>
+            <Button type="primary" htmlType="submit" loading={submitting} disabled={loadingProduct}>
               {isEdit ? "Lưu thay đổi" : "Tạo sản phẩm"}
             </Button>
           </>
@@ -255,6 +366,7 @@ export function ProductForm({ product }: ProductFormProps) {
               required
               placeholder="VD: ASUS ROG Strix G16"
               rules={{ required: "Vui lòng nhập tên sản phẩm" }}
+              disabled={loadingProduct || submitting}
             />
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -265,12 +377,14 @@ export function ProductForm({ product }: ProductFormProps) {
                 required
                 placeholder="VD: ASU-LAP-0001"
                 rules={{ required: "Vui lòng nhập mã SKU" }}
+                disabled={loadingProduct || submitting}
               />
               <SelectField
                 name="categoryId"
                 control={control}
                 label="Danh mục"
                 required
+                disabled={loadingOptions || loadingProduct || submitting}
                 options={categoryOptions}
                 rules={{ required: "Vui lòng chọn danh mục" }}
               />
@@ -279,6 +393,7 @@ export function ProductForm({ product }: ProductFormProps) {
                 control={control}
                 label="Thương hiệu"
                 required
+                disabled={loadingOptions || loadingProduct || submitting}
                 options={brandOptions}
                 rules={{ required: "Vui lòng chọn thương hiệu" }}
               />
@@ -288,6 +403,7 @@ export function ProductForm({ product }: ProductFormProps) {
                 label="Cho phép bán"
                 checkedLabel="Đang bán"
                 uncheckedLabel="Tạm ẩn"
+                disabled={loadingProduct || submitting}
               />
             </div>
 
@@ -297,6 +413,7 @@ export function ProductForm({ product }: ProductFormProps) {
               label="Mô tả"
               placeholder="Mô tả ngắn về sản phẩm, chính sách bảo hành..."
               maxLength={500}
+              disabled={loadingProduct || submitting}
             />
           </section>
 
@@ -306,6 +423,7 @@ export function ProductForm({ product }: ProductFormProps) {
               name="images"
               control={control}
               maxCount={8}
+              disabled={loadingProduct || submitting}
               rules={{
                 validate: (value) =>
                   (Array.isArray(value) && value.length > 0) ||
@@ -315,7 +433,7 @@ export function ProductForm({ product }: ProductFormProps) {
           </section>
 
           <section className="bg-card border-line shadow-card space-y-4 rounded-lg border p-4">
-            <SpecListField control={control} disabled={submitting} />
+            <SpecListField control={control} disabled={loadingProduct || submitting} />
           </section>
         </div>
 
@@ -329,6 +447,7 @@ export function ProductForm({ product }: ProductFormProps) {
             required
             step={1000}
             rules={{ required: "Vui lòng nhập giá bán" }}
+            disabled={loadingProduct || submitting}
           />
           <CurrencyField
             name="cost"
@@ -336,6 +455,7 @@ export function ProductForm({ product }: ProductFormProps) {
             label="Giá vốn"
             step={1000}
             helpText="Dùng để tính biên lợi nhuận, không hiển thị cho khách"
+            disabled={loadingProduct || submitting}
           />
           <TextField
             name="stock"
@@ -343,6 +463,7 @@ export function ProductForm({ product }: ProductFormProps) {
             label="Số lượng tồn"
             type="number"
             min={0}
+            disabled={loadingProduct || submitting}
           />
         </section>
       </div>

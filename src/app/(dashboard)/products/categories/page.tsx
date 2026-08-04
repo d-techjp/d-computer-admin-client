@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { App, Button, Input, Modal, Select, Space, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Pencil, Plus, Trash2 } from "lucide-react";
@@ -11,10 +11,15 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { SelectField, TextField } from "@/components/form/fields";
 import { FormItemLayout } from "@/components/form/FormItemLayout";
 import { SearchFilterBar } from "@/components/form/SearchFilterBar";
-import { useListQuery } from "@/hooks/useListQuery";
-import { fakeMutate, matchEquals, matchText } from "@/lib/fakeFetch";
+import {
+  categoryOptionsFrom,
+  createCategory,
+  deleteCategory,
+  listCategories,
+  updateCategory,
+} from "@/lib/api/products";
 import { formatNumber } from "@/lib/utils";
-import { categories } from "@/mock/catalog";
+import { DEFAULT_PAGE_SIZE, type SelectOption } from "@/types/common";
 import type { Category } from "@/types/product";
 
 interface CategoryFilters {
@@ -24,35 +29,70 @@ interface CategoryFilters {
 
 interface CategoryFormValues {
   name: string;
-  slug: string;
+  slug?: string;
   parentId?: string;
 }
 
-const PARENT_OPTIONS = categories
-  .filter((item) => !item.parentId)
-  .map((item) => ({ label: item.name, value: item.id }));
-
 export default function CategoriesPage() {
   const { message, modal } = App.useApp();
+  const [rows, setRows] = useState<Category[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState<CategoryFilters>({ keyword: "" });
+  const [appliedFilters, setAppliedFilters] = useState<CategoryFilters>({ keyword: "" });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [parentOptions, setParentOptions] = useState<SelectOption[]>([]);
   const [editing, setEditing] = useState<Category | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const { rows, loading, filters, patchFilters, search, reset, pagination } =
-    useListQuery<Category, CategoryFilters>({
-      source: categories,
-      initialFilters: { keyword: "" },
-      buildFilters: (f) => [
-        matchText(f.keyword, (item) => [item.name, item.slug]),
-        matchEquals(f.parentId, (item) => item.parentId ?? ""),
-      ],
-    });
+  const loadRows = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await listCategories({
+        page,
+        limit: pageSize,
+        search: appliedFilters.keyword,
+        parentId: appliedFilters.parentId,
+        sortBy: "createdAt",
+        sortOrder: "DESC",
+      });
+      setRows(response.data);
+      setTotal(response.total);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Không tải được danh mục");
+    } finally {
+      setLoading(false);
+    }
+  }, [appliedFilters, message, page, pageSize]);
 
-  const {
-    control,
-    handleSubmit,
-    reset: resetForm,
-  } = useForm<CategoryFormValues>({ defaultValues: { name: "", slug: "" } });
+  const loadParentOptions = useCallback(async () => {
+    try {
+      const response = await listCategories({
+        page: 1,
+        limit: 100,
+        rootOnly: true,
+        sortBy: "name",
+        sortOrder: "ASC",
+      });
+      setParentOptions(categoryOptionsFrom(response.data));
+    } catch {
+      setParentOptions([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    queueMicrotask(() => void loadRows());
+  }, [loadRows]);
+
+  useEffect(() => {
+    queueMicrotask(() => void loadParentOptions());
+  }, [loadParentOptions]);
+
+  const { control, handleSubmit, reset: resetForm } = useForm<CategoryFormValues>({
+    defaultValues: { name: "", slug: "" },
+  });
 
   const openModal = (category?: Category) => {
     setEditing(category ?? null);
@@ -66,13 +106,49 @@ export default function CategoriesPage() {
 
   const onSubmit = handleSubmit(async (values) => {
     setSubmitting(true);
-    await fakeMutate(values);
-    setSubmitting(false);
-    setModalOpen(false);
-    message.success(
-      editing ? `Đã cập nhật danh mục ${values.name}` : "Đã thêm danh mục mới",
-    );
+    try {
+      const payload = {
+        name: values.name,
+        slug: values.slug,
+        parentId: values.parentId,
+        isActive: true,
+      };
+
+      if (editing) {
+        await updateCategory(editing.id, payload);
+      } else {
+        await createCategory({ ...payload, name: values.name });
+      }
+
+      setModalOpen(false);
+      message.success(
+        editing ? `Đã cập nhật danh mục ${values.name}` : "Đã thêm danh mục mới",
+      );
+      await Promise.all([loadRows(), loadParentOptions()]);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Không lưu được danh mục");
+    } finally {
+      setSubmitting(false);
+    }
   });
+
+  const handleDelete = (record: Category) => {
+    modal.confirm({
+      title: `Xoá danh mục ${record.name}?`,
+      content:
+        record.productCount > 0
+          ? `Danh mục đang chứa ${record.productCount} sản phẩm.`
+          : "Thao tác không thể hoàn tác.",
+      okText: "Xoá",
+      cancelText: "Huỷ",
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        await deleteCategory(record.id);
+        message.success("Đã xoá danh mục");
+        await Promise.all([loadRows(), loadParentOptions()]);
+      },
+    });
+  };
 
   const columns = useMemo<ColumnsType<Category>>(
     () => [
@@ -82,15 +158,13 @@ export default function CategoriesPage() {
         title: "Danh mục cha",
         dataIndex: "parentName",
         width: 160,
-        render: (value?: string) =>
-          value ?? <span className="text-muted">—</span>,
+        render: (value?: string) => value ?? <span className="text-muted">—</span>,
       },
       {
         title: "Số sản phẩm",
         dataIndex: "productCount",
         width: 120,
         align: "right",
-        sorter: (a, b) => a.productCount - b.productCount,
         render: (value: number) => formatNumber(value),
       },
       {
@@ -101,38 +175,34 @@ export default function CategoriesPage() {
         render: (_, record) => (
           <Space size="small">
             <Tooltip title="Sửa">
-              <Button
-                type="text"
-                size="small"
-                icon={<Pencil size={16} />}
-                onClick={() => openModal(record)}
-              />
+              <Button type="text" size="small" icon={<Pencil size={16} />} onClick={() => openModal(record)} />
             </Tooltip>
             <Tooltip title="Xoá">
-              <Button
-                type="text"
-                size="small"
-                danger
-                icon={<Trash2 size={16} />}
-                onClick={() =>
-                  modal.confirm({
-                    title: `Xoá danh mục ${record.name}?`,
-                    content: `Danh mục đang chứa ${record.productCount} sản phẩm.`,
-                    okText: "Xoá",
-                    cancelText: "Huỷ",
-                    okButtonProps: { danger: true },
-                    onOk: () => message.success("Đã xoá danh mục"),
-                  })
-                }
-              />
+              <Button type="text" size="small" danger icon={<Trash2 size={16} />} onClick={() => handleDelete(record)} />
             </Tooltip>
           </Space>
         ),
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [message, modal],
+    [modal, message, loadRows, loadParentOptions],
   );
+
+  const patchFilters = (patch: Partial<CategoryFilters>) => {
+    setFilters((current) => ({ ...current, ...patch }));
+  };
+
+  const search = () => {
+    setPage(1);
+    setAppliedFilters({ ...filters });
+  };
+
+  const reset = () => {
+    const next = { keyword: "" };
+    setPage(1);
+    setFilters(next);
+    setAppliedFilters(next);
+  };
 
   return (
     <>
@@ -140,11 +210,7 @@ export default function CategoriesPage() {
         title="Danh mục sản phẩm"
         description="Cây danh mục dùng để phân loại sản phẩm trên cửa hàng"
         extra={
-          <Button
-            type="primary"
-            icon={<Plus size={16} />}
-            onClick={() => openModal()}
-          >
+          <Button type="primary" icon={<Plus size={16} />} onClick={() => openModal()}>
             Thêm danh mục
           </Button>
         }
@@ -164,7 +230,7 @@ export default function CategoriesPage() {
           <Select
             allowClear
             placeholder="Tất cả"
-            options={PARENT_OPTIONS}
+            options={parentOptions}
             value={filters.parentId}
             onChange={(parentId) => patchFilters({ parentId })}
             className="w-full"
@@ -177,7 +243,15 @@ export default function CategoriesPage() {
         columns={columns}
         dataSource={rows}
         loading={loading}
-        pagination={pagination}
+        pagination={{
+          current: page,
+          pageSize,
+          total,
+          onChange: (nextPage, nextPageSize) => {
+            setPage(nextPage);
+            setPageSize(nextPageSize);
+          },
+        }}
       />
 
       <Modal
@@ -202,15 +276,13 @@ export default function CategoriesPage() {
             name="slug"
             control={control}
             label="Đường dẫn"
-            required
-            helpText="Dùng cho URL, chỉ gồm chữ thường và dấu gạch ngang"
-            rules={{ required: "Vui lòng nhập đường dẫn" }}
+            helpText="Bỏ trống để backend tự sinh từ tên danh mục"
           />
           <SelectField
             name="parentId"
             control={control}
             label="Danh mục cha"
-            options={PARENT_OPTIONS}
+            options={parentOptions.filter((item) => item.value !== editing?.id)}
             helpText="Bỏ trống nếu đây là danh mục gốc"
           />
         </div>
