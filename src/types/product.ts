@@ -1,4 +1,4 @@
-export type ProductStatus = "active" | "draft" | "out_of_stock";
+export type ProductStatus = "active" | "draft" | "out_of_stock" | "archived";
 
 /**
  * Thông số kỹ thuật để dạng danh sách nhãn/giá trị thay vì các trường cố định,
@@ -61,4 +61,5 @@ export const PRODUCT_STATUS_LABEL: Record<ProductStatus, string> = {
   active: "Đang bán",
   draft: "Bản nháp",
   out_of_stock: "Hết hàng",
+  archived: "Lưu trữ",
 };

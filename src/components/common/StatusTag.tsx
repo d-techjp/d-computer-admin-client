@@ -34,6 +34,7 @@ const PRODUCT_COLOR: Record<ProductStatus, string> = {
   active: "green",
   draft: "default",
   out_of_stock: "red",
+  archived: "purple",
 };
 
 const POST_COLOR: Record<PostStatus, string> = {

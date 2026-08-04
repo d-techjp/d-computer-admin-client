@@ -1,18 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import {
-  App,
-  Button,
-  Input,
-  InputNumber,
-  Popconfirm,
-  Select,
-  Space,
-  Tooltip,
-} from "antd";
+import { App, Button, Input, InputNumber, Popconfirm, Select, Space, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { ImageOff, Pencil, Plus, Trash2 } from "lucide-react";
 
@@ -22,49 +13,118 @@ import { ProductStatusTag } from "@/components/common/StatusTag";
 import { FormItemLayout } from "@/components/form/FormItemLayout";
 import { SearchFilterBar } from "@/components/form/SearchFilterBar";
 import routes from "@/config/routes";
-import { useListQuery } from "@/hooks/useListQuery";
-import { matchEquals, matchNumberRange, matchText } from "@/lib/fakeFetch";
+import {
+  brandOptionsFrom,
+  categoryOptionsFrom,
+  deleteProduct,
+  listBrands,
+  listCategories,
+  listProducts,
+} from "@/lib/api/products";
 import {
   currencyInputFormatter,
   currencyInputParser,
   formatCurrency,
   formatNumber,
 } from "@/lib/utils";
-import { brandOptions, categoryOptions } from "@/mock/catalog";
-import { products } from "@/mock/products";
-import { PRODUCT_STATUS_LABEL, type Product } from "@/types/product";
+import { DEFAULT_PAGE_SIZE, type SelectOption } from "@/types/common";
+import { PRODUCT_STATUS_LABEL, type Product, type ProductStatus } from "@/types/product";
 
 interface ProductFilters {
   keyword: string;
   categoryId?: string;
   brandId?: string;
-  status?: string;
+  status?: ProductStatus;
   minPrice?: number;
   maxPrice?: number;
 }
 
-const INITIAL_FILTERS: ProductFilters = { keyword: "" };
-
-const STATUS_OPTIONS = Object.entries(PRODUCT_STATUS_LABEL).map(
-  ([value, label]) => ({ label, value }),
-);
+const STATUS_OPTIONS = Object.entries(PRODUCT_STATUS_LABEL).map(([value, label]) => ({
+  label,
+  value,
+}));
 
 export default function ProductsPage() {
   const { message } = App.useApp();
+  const [rows, setRows] = useState<Product[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState<ProductFilters>({ keyword: "" });
+  const [appliedFilters, setAppliedFilters] = useState<ProductFilters>({ keyword: "" });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([]);
+  const [brandOptions, setBrandOptions] = useState<SelectOption[]>([]);
 
-  const { rows, loading, filters, patchFilters, search, reset, pagination } =
-    useListQuery<Product, ProductFilters>({
-      source: products,
-      initialFilters: INITIAL_FILTERS,
-      buildFilters: (f) => [
-        matchText(f.keyword, (item) => [item.name, item.sku]),
-        matchEquals(f.categoryId, (item) => item.categoryId),
-        matchEquals(f.brandId, (item) => item.brandId),
-        matchEquals(f.status, (item) => item.status),
-        matchNumberRange(f.minPrice, f.maxPrice, (item) => item.price),
-      ],
-      sorter: (a, b) => b.createdAt.localeCompare(a.createdAt),
-    });
+  const loadRows = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await listProducts({
+        page,
+        limit: pageSize,
+        search: appliedFilters.keyword,
+        categoryId: appliedFilters.categoryId,
+        includeSubCategories: !!appliedFilters.categoryId,
+        brandId: appliedFilters.brandId,
+        status: appliedFilters.status,
+        minPrice: appliedFilters.minPrice,
+        maxPrice: appliedFilters.maxPrice,
+        sortBy: "createdAt",
+        sortOrder: "DESC",
+      });
+      setRows(response.data);
+      setTotal(response.total);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Không tải được danh sách sản phẩm");
+    } finally {
+      setLoading(false);
+    }
+  }, [appliedFilters, message, page, pageSize]);
+
+  useEffect(() => {
+    queueMicrotask(() => void loadRows());
+  }, [loadRows]);
+
+  useEffect(() => {
+    Promise.all([
+      listCategories({ page: 1, limit: 100, sortBy: "name", sortOrder: "ASC", isActive: true }),
+      listBrands({ page: 1, limit: 100, sortBy: "name", sortOrder: "ASC", isActive: true }),
+    ])
+      .then(([categories, brands]) => {
+        setCategoryOptions(categoryOptionsFrom(categories.data));
+        setBrandOptions(brandOptionsFrom(brands.data));
+      })
+      .catch(() => {
+        setCategoryOptions([]);
+        setBrandOptions([]);
+      });
+  }, []);
+
+  const patchFilters = (patch: Partial<ProductFilters>) => {
+    setFilters((current) => ({ ...current, ...patch }));
+  };
+
+  const search = () => {
+    setPage(1);
+    setAppliedFilters({ ...filters });
+  };
+
+  const reset = () => {
+    const next = { keyword: "" };
+    setPage(1);
+    setFilters(next);
+    setAppliedFilters(next);
+  };
+
+  const handleDelete = async (record: Product) => {
+    try {
+      await deleteProduct(record.id);
+      message.success(`Đã xoá ${record.name}`);
+      await loadRows();
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Không xoá được sản phẩm");
+    }
+  };
 
   const columns = useMemo<ColumnsType<Product>>(
     () => [
@@ -92,10 +152,7 @@ export default function ProductsPage() {
               )}
             </div>
             <div className="min-w-0">
-              <Link
-                href={routes.products.detail(record.id)}
-                className="line-clamp-1 font-semibold"
-              >
+              <Link href={routes.products.detail(record.id)} className="line-clamp-1 font-semibold">
                 {record.name}
               </Link>
               <div className="text-muted text-xs">{record.sku}</div>
@@ -103,14 +160,13 @@ export default function ProductsPage() {
           </div>
         ),
       },
-      { title: "Danh mục", dataIndex: "categoryName", width: 140 },
-      { title: "Thương hiệu", dataIndex: "brandName", width: 120 },
+      { title: "Danh mục", dataIndex: "categoryName", width: 140, render: (value?: string) => value || "—" },
+      { title: "Thương hiệu", dataIndex: "brandName", width: 120, render: (value?: string) => value || "—" },
       {
         title: "Giá bán",
         dataIndex: "price",
         width: 140,
         align: "right",
-        sorter: (a, b) => a.price - b.price,
         render: (value: number) => formatCurrency(value),
       },
       {
@@ -118,7 +174,6 @@ export default function ProductsPage() {
         dataIndex: "stock",
         width: 100,
         align: "right",
-        sorter: (a, b) => a.stock - b.stock,
         render: (value: number) => (
           <span className={value === 0 ? "text-danger font-semibold" : ""}>
             {formatNumber(value)}
@@ -130,9 +185,7 @@ export default function ProductsPage() {
         dataIndex: "status",
         width: 120,
         align: "center",
-        render: (status: Product["status"]) => (
-          <ProductStatusTag status={status} />
-        ),
+        render: (status: Product["status"]) => <ProductStatusTag status={status} />,
       },
       {
         title: "Thao tác",
@@ -153,22 +206,18 @@ export default function ProductsPage() {
               okText="Xoá"
               cancelText="Huỷ"
               okButtonProps={{ danger: true }}
-              onConfirm={() => message.success(`Đã xoá ${record.name}`)}
+              onConfirm={() => handleDelete(record)}
             >
               <Tooltip title="Xoá">
-                <Button
-                  type="text"
-                  size="small"
-                  danger
-                  icon={<Trash2 size={16} />}
-                />
+                <Button type="text" size="small" danger icon={<Trash2 size={16} />} />
               </Tooltip>
             </Popconfirm>
           </Space>
         ),
       },
     ],
-    [message],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
   );
 
   return (
@@ -232,7 +281,7 @@ export default function ProductsPage() {
           />
         </FormItemLayout>
 
-        {/* <FormItemLayout label="Khoảng giá (JPY)" className="sm:col-span-2">
+        <FormItemLayout label="Khoảng giá (JPY)" className="sm:col-span-2">
           <Space.Compact className="w-full">
             <InputNumber
               placeholder="Giá từ"
@@ -242,9 +291,7 @@ export default function ProductsPage() {
               formatter={currencyInputFormatter}
               parser={currencyInputParser}
               value={filters.minPrice}
-              onChange={(minPrice) =>
-                patchFilters({ minPrice: minPrice ?? undefined })
-              }
+              onChange={(minPrice) => patchFilters({ minPrice: minPrice ?? undefined })}
             />
             <InputNumber
               placeholder="Giá đến"
@@ -254,12 +301,10 @@ export default function ProductsPage() {
               formatter={currencyInputFormatter}
               parser={currencyInputParser}
               value={filters.maxPrice}
-              onChange={(maxPrice) =>
-                patchFilters({ maxPrice: maxPrice ?? undefined })
-              }
+              onChange={(maxPrice) => patchFilters({ maxPrice: maxPrice ?? undefined })}
             />
           </Space.Compact>
-        </FormItemLayout> */}
+        </FormItemLayout>
       </SearchFilterBar>
 
       <DataTable<Product>
@@ -267,7 +312,15 @@ export default function ProductsPage() {
         columns={columns}
         dataSource={rows}
         loading={loading}
-        pagination={pagination}
+        pagination={{
+          current: page,
+          pageSize,
+          total,
+          onChange: (nextPage, nextPageSize) => {
+            setPage(nextPage);
+            setPageSize(nextPageSize);
+          },
+        }}
       />
     </>
   );
