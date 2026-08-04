@@ -7,10 +7,12 @@ import { Menu } from "antd";
 import type { MenuProps } from "antd";
 
 import {
+  filterMenuByPermissions,
   findActiveMenu,
   menuConfig,
   type MenuItemConfig,
 } from "@/config/menuConfig";
+import { usePermissions } from "@/hooks/usePermissions";
 
 type AntdMenuItem = Required<MenuProps>["items"][number];
 
@@ -21,8 +23,8 @@ function renderIcon(item: MenuItemConfig, size: number) {
 
 /**
  * Chuyển dữ liệu menuConfig sang định dạng items của antd Menu — tương ứng
- * hàm buildMenuItems() trong SideNavigation của bản gốc. Chỗ này về sau là
- * nơi lọc theo `roles` khi có RBAC.
+ * hàm buildMenuItems() trong SideNavigation của bản gốc. Menu đã được lọc theo
+ * permission trước khi vào đây.
  */
 function buildMenuItems(items: MenuItemConfig[]): AntdMenuItem[] {
   return items.map((item) => {
@@ -56,7 +58,13 @@ export function SidebarMenu({
   theme = "light",
 }: SidebarMenuProps) {
   const pathname = usePathname();
-  const items = useMemo(() => buildMenuItems(menuConfig), []);
+  const { permissions } = usePermissions();
+
+  // Chỉ dựng những mục mà permission sau khi đăng nhập cho phép
+  const items = useMemo(
+    () => buildMenuItems(filterMenuByPermissions(menuConfig, permissions)),
+    [permissions],
+  );
 
   const active = findActiveMenu(pathname);
   const selectedKeys = active ? [active.key] : [];

@@ -17,6 +17,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import type { AppPermission } from "@/types/auth";
+
+import { requiredPermissionFor } from "./permissions";
 import routes from "./routes";
 
 export interface MenuItemConfig {
@@ -24,8 +27,11 @@ export interface MenuItemConfig {
   label: string;
   icon?: LucideIcon;
   path?: string;
-  /** Để sẵn cho RBAC — chưa lọc ở v1, khớp với mục "Quản trị viên" */
-  roles?: string[];
+  /**
+   * Permission cần có để thấy mục này (khớp `GET /api/v1/auth/permissions`).
+   * Mục cha không cần khai báo: chỉ cần còn ít nhất một mục con hiện là hiện.
+   */
+  permission?: AppPermission;
   children?: MenuItemConfig[];
 }
 
@@ -134,6 +140,51 @@ export const menuConfig: MenuItemConfig[] = [
     path: routes.activityLogs,
   },
 ];
+
+/**
+ * Permission của một mục menu: ưu tiên khai báo trực tiếp, nếu không thì suy ra
+ * từ bảng ROUTE_PERMISSIONS theo path — nhờ vậy menu và guard trang luôn khớp.
+ */
+export function permissionOf(item: MenuItemConfig): AppPermission | undefined {
+  if (item.permission) return item.permission;
+  return item.path ? requiredPermissionFor(item.path) : undefined;
+}
+
+/**
+ * Lọc menu theo permission đã lưu sau khi đăng nhập. Mục cha bị ẩn khi không
+ * còn mục con nào được phép xem.
+ */
+export function filterMenuByPermissions(
+  items: MenuItemConfig[],
+  permissions: AppPermission[],
+): MenuItemConfig[] {
+  return items.reduce<MenuItemConfig[]>((visible, item) => {
+    if (item.children?.length) {
+      const children = filterMenuByPermissions(item.children, permissions);
+      if (children.length) visible.push({ ...item, children });
+      return visible;
+    }
+
+    const required = permissionOf(item);
+    if (!required || permissions.includes(required)) visible.push(item);
+    return visible;
+  }, []);
+}
+
+/**
+ * Trang đích sau khi đăng nhập: mục menu đầu tiên mà tài khoản được phép vào.
+ * Tài khoản không có `dashboard.view` vẫn vào được trang hợp lệ đầu tiên.
+ */
+export function firstAccessiblePath(permissions: AppPermission[]): string | undefined {
+  const visible = filterMenuByPermissions(menuConfig, permissions);
+
+  for (const item of visible) {
+    if (item.path) return item.path;
+    const child = item.children?.find((entry) => entry.path);
+    if (child?.path) return child.path;
+  }
+  return undefined;
+}
 
 /** Làm phẳng menu để tra cứu nhanh theo path (dùng cho breadcrumb + active key) */
 export interface FlatMenuEntry {
