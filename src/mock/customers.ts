@@ -5,7 +5,7 @@ import { faker, roundPrice, seedFaker } from "./utils";
 const STATUS_WEIGHTS: CustomerStatus[] = [
   ...Array<CustomerStatus>(8).fill("active"),
   "inactive",
-  "blocked",
+  "banned",
 ];
 
 /**
@@ -34,6 +34,7 @@ function generateCustomers(count: number): Customer[] {
 
     return {
       id: `cus-${String(index + 1).padStart(4, "0")}`,
+      username: `user${index + 1}`,
       name,
       email: faker.internet
         .email({ firstName: `user${index + 1}` })

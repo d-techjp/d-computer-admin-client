@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   App,
   Button,
@@ -24,41 +24,42 @@ import { AdminStatusTag } from "@/components/common/StatusTag";
 import { TextAreaField, TextField } from "@/components/form/fields";
 import { FormItemLayout } from "@/components/form/FormItemLayout";
 import { SearchFilterBar } from "@/components/form/SearchFilterBar";
-import { useListQuery } from "@/hooks/useListQuery";
-import { fakeMutate, matchText } from "@/lib/fakeFetch";
+import {
+  createRole,
+  deleteRole,
+  fetchPermissionGroups,
+  listRoles,
+  updateRole,
+  type PermissionGroupOption,
+} from "@/lib/api/roles";
+import { listAdminUsers } from "@/lib/api/users";
 import { formatNumber } from "@/lib/utils";
-import { adminRoles, adminUsers, ALL_PERMISSIONS } from "@/mock/admin-users";
 import {
   PERMISSION_LABEL,
   type AdminRole,
   type AdminUser,
   type Permission,
 } from "@/types/admin-user";
+import { DEFAULT_PAGE_SIZE } from "@/types/common";
 
 interface RoleFilters {
   keyword: string;
 }
 
 interface RoleFormValues {
+  code: string;
   name: string;
   description: string;
   permissions: Permission[];
 }
 
-/** Gom quyền theo phân hệ để checkbox group đọc dễ hơn danh sách phẳng */
-const PERMISSION_GROUPS: { title: string; items: Permission[] }[] = [
-  { title: "Tổng quan", items: ["dashboard:view"] },
-  { title: "Sản phẩm", items: ["product:view", "product:edit"] },
-  { title: "Đơn hàng", items: ["order:view", "order:edit"] },
-  { title: "Khách hàng", items: ["customer:view", "customer:edit"] },
-  { title: "Kho", items: ["warehouse:view", "warehouse:edit"] },
-  { title: "Bài viết", items: ["post:view", "post:edit"] },
-  { title: "Hệ thống", items: ["admin:manage"] },
-];
-
 const memberColumns: ColumnsType<AdminUser> = [
   { title: "Họ tên", dataIndex: "name" },
-  { title: "Email", dataIndex: "email" },
+  {
+    title: "Email",
+    dataIndex: "email",
+    render: (value: string | undefined, record) => value ?? record.username,
+  },
   {
     title: "Trạng thái",
     dataIndex: "status",
@@ -70,43 +71,75 @@ const memberColumns: ColumnsType<AdminUser> = [
     title: "Đăng nhập gần nhất",
     dataIndex: "lastLoginAt",
     width: 170,
-    render: (value: string) => dayjs(value).format("HH:mm DD/MM/YYYY"),
+    render: (value?: string) => (value ? dayjs(value).format("HH:mm DD/MM/YYYY") : "—"),
   },
 ];
 
-/**
- * Trang quản lý quyền — nơi duy nhất tạo/sửa/xoá nhóm quyền (role). Trang
- * "Quản trị viên" chỉ còn hiển thị danh sách tài khoản và role của họ, không
- * còn CRUD role ở đó nữa.
- */
+function permissionLabel(code: string, groups: PermissionGroupOption[]) {
+  const permission = groups
+    .flatMap((group) => group.permissions)
+    .find((item) => item.code === code);
+  return permission?.name ?? PERMISSION_LABEL[code] ?? code;
+}
+
+function moduleTitle(module: string) {
+  return module || "Khác";
+}
+
 export default function RolesPage() {
   const { message } = App.useApp();
+  const [rows, setRows] = useState<AdminRole[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState<RoleFilters>({ keyword: "" });
+  const [appliedFilters, setAppliedFilters] = useState<RoleFilters>({ keyword: "" });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<AdminRole | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [viewingMembers, setViewingMembers] = useState<AdminRole | null>(null);
+  const [members, setMembers] = useState<AdminUser[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [permissionGroups, setPermissionGroups] = useState<PermissionGroupOption[]>([]);
 
-  const { rows, loading, filters, patchFilters, search, reset, pagination } =
-    useListQuery<AdminRole, RoleFilters>({
-      source: adminRoles,
-      initialFilters: { keyword: "" },
-      buildFilters: (f) => [
-        matchText(f.keyword, (item) => [item.name, item.description]),
-      ],
-      sorter: (a, b) => b.permissions.length - a.permissions.length,
-    });
+  const loadRows = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await listRoles({
+        page,
+        limit: pageSize,
+        search: appliedFilters.keyword,
+        sortBy: "createdAt",
+        sortOrder: "DESC",
+      });
+      setRows(response.data);
+      setTotal(response.total);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Không tải được danh sách nhóm quyền");
+    } finally {
+      setLoading(false);
+    }
+  }, [appliedFilters.keyword, message, page, pageSize]);
 
-  const {
-    control,
-    handleSubmit,
-    reset: resetForm,
-  } = useForm<RoleFormValues>({
-    defaultValues: { name: "", description: "", permissions: [] },
+  useEffect(() => {
+    queueMicrotask(() => void loadRows());
+  }, [loadRows]);
+
+  useEffect(() => {
+    fetchPermissionGroups()
+      .then(setPermissionGroups)
+      .catch(() => setPermissionGroups([]));
+  }, []);
+
+  const { control, handleSubmit, reset: resetForm } = useForm<RoleFormValues>({
+    defaultValues: { code: "", name: "", description: "", permissions: [] },
   });
 
   const openModal = (role?: AdminRole) => {
     setEditing(role ?? null);
     resetForm({
+      code: role?.code ?? "",
       name: role?.name ?? "",
       description: role?.description ?? "",
       permissions: role?.permissions ?? [],
@@ -116,41 +149,86 @@ export default function RolesPage() {
 
   const onSubmit = handleSubmit(async (values) => {
     setSubmitting(true);
-    await fakeMutate(values);
-    setSubmitting(false);
-    setModalOpen(false);
-    message.success(
-      editing ? `Đã cập nhật quyền ${values.name}` : "Đã tạo nhóm quyền mới",
-    );
+    try {
+      if (editing) {
+        await updateRole(editing.id, {
+          name: values.name,
+          description: values.description,
+          permissionCodes: values.permissions,
+        });
+        message.success(`Đã cập nhật quyền ${values.name}`);
+      } else {
+        await createRole({
+          code: values.code,
+          name: values.name,
+          description: values.description,
+          permissionCodes: values.permissions,
+        });
+        message.success("Đã tạo nhóm quyền mới");
+      }
+      setModalOpen(false);
+      await loadRows();
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Không lưu được nhóm quyền");
+    } finally {
+      setSubmitting(false);
+    }
   });
+
+  const handleDelete = async (record: AdminRole) => {
+    try {
+      await deleteRole(record.id);
+      message.success(`Đã xoá nhóm quyền ${record.name}`);
+      await loadRows();
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Không xoá được nhóm quyền");
+    }
+  };
+
+  const openMembers = async (role: AdminRole) => {
+    setViewingMembers(role);
+    setMembers([]);
+    setMembersLoading(true);
+    try {
+      const response = await listAdminUsers({
+        page: 1,
+        limit: 100,
+        roleCode: role.code,
+        sortBy: "createdAt",
+        sortOrder: "DESC",
+      });
+      setMembers(response.data);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Không tải được quản trị viên thuộc nhóm");
+    } finally {
+      setMembersLoading(false);
+    }
+  };
 
   const columns = useMemo<ColumnsType<AdminRole>>(
     () => [
       {
         title: "Tên nhóm quyền",
         dataIndex: "name",
-        width: 200,
+        width: 220,
         render: (name: string, record) => (
           <div className="min-w-0">
             <div className="font-semibold">{name}</div>
-            <div className="text-muted truncate text-xs">
-              {record.description}
-            </div>
+            <div className="text-muted truncate text-xs">{record.description}</div>
+            <div className="text-muted truncate text-xs">{record.code}</div>
           </div>
         ),
       },
       {
         title: "Quyền",
         dataIndex: "permissions",
-        width: 320,
+        width: 360,
         render: (permissions: Permission[]) => (
           <Space size={[4, 4]} wrap>
             {permissions.slice(0, 4).map((permission) => (
-              <Tag key={permission}>{PERMISSION_LABEL[permission]}</Tag>
+              <Tag key={permission}>{permissionLabel(permission, permissionGroups)}</Tag>
             ))}
-            {permissions.length > 4 && (
-              <Tag color="blue">+{permissions.length - 4}</Tag>
-            )}
+            {permissions.length > 4 && <Tag color="blue">+{permissions.length - 4}</Tag>}
           </Space>
         ),
       },
@@ -159,7 +237,6 @@ export default function RolesPage() {
         dataIndex: "memberCount",
         width: 140,
         align: "right",
-        sorter: (a, b) => a.memberCount - b.memberCount,
         render: (value: number) => formatNumber(value),
       },
       {
@@ -176,45 +253,39 @@ export default function RolesPage() {
         render: (_, record) => (
           <Space size="small">
             <Tooltip title="Xem quản trị viên thuộc nhóm">
-              <Button
-                type="text"
-                size="small"
-                icon={<Users size={16} />}
-                onClick={() => setViewingMembers(record)}
-              />
+              <Button type="text" size="small" icon={<Users size={16} />} onClick={() => openMembers(record)} />
             </Tooltip>
             <Tooltip title="Sửa quyền">
-              <Button
-                type="text"
-                size="small"
-                icon={<Pencil size={16} />}
-                onClick={() => openModal(record)}
-              />
+              <Button type="text" size="small" icon={<Pencil size={16} />} onClick={() => openModal(record)} />
             </Tooltip>
             <Popconfirm
               title="Xoá nhóm quyền này?"
               description={
                 record.memberCount > 0
                   ? `Đang có ${record.memberCount} quản trị viên thuộc nhóm này.`
-                  : "Thao tác không thể hoàn tác."
+                  : record.isSystem
+                    ? "Role hệ thống không thể xoá."
+                    : "Thao tác không thể hoàn tác."
               }
               okText="Xoá"
               cancelText="Huỷ"
-              okButtonProps={{ danger: true, disabled: record.memberCount > 0 }}
-              onConfirm={() => message.success(`Đã xoá nhóm quyền ${record.name}`)}
+              okButtonProps={{ danger: true, disabled: record.memberCount > 0 || record.isSystem }}
+              onConfirm={() => handleDelete(record)}
             >
               <Tooltip
                 title={
-                  record.memberCount > 0
-                    ? "Không thể xoá khi còn quản trị viên thuộc nhóm"
-                    : "Xoá"
+                  record.isSystem
+                    ? "Không thể xoá role hệ thống"
+                    : record.memberCount > 0
+                      ? "Không thể xoá khi còn quản trị viên thuộc nhóm"
+                      : "Xoá"
                 }
               >
                 <Button
                   type="text"
                   size="small"
                   danger
-                  disabled={record.memberCount > 0}
+                  disabled={record.memberCount > 0 || record.isSystem}
                   icon={<Trash2 size={16} />}
                 />
               </Tooltip>
@@ -224,12 +295,20 @@ export default function RolesPage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [message],
+    [permissionGroups],
   );
 
-  const members = viewingMembers
-    ? adminUsers.filter((user) => user.roleId === viewingMembers.id)
-    : [];
+  const search = () => {
+    setPage(1);
+    setAppliedFilters({ ...filters });
+  };
+
+  const reset = () => {
+    const next = { keyword: "" };
+    setPage(1);
+    setFilters(next);
+    setAppliedFilters(next);
+  };
 
   return (
     <>
@@ -237,11 +316,7 @@ export default function RolesPage() {
         title="Quản lý quyền"
         description="Tạo và phân quyền cho từng nhóm quản trị viên"
         extra={
-          <Button
-            type="primary"
-            icon={<Plus size={16} />}
-            onClick={() => openModal()}
-          >
+          <Button type="primary" icon={<Plus size={16} />} onClick={() => openModal()}>
             Thêm nhóm quyền
           </Button>
         }
@@ -253,7 +328,7 @@ export default function RolesPage() {
             allowClear
             placeholder="Nhập tên hoặc mô tả nhóm quyền"
             value={filters.keyword}
-            onChange={(event) => patchFilters({ keyword: event.target.value })}
+            onChange={(event) => setFilters((current) => ({ ...current, keyword: event.target.value }))}
           />
         </FormItemLayout>
       </SearchFilterBar>
@@ -263,7 +338,15 @@ export default function RolesPage() {
         columns={columns}
         dataSource={rows}
         loading={loading}
-        pagination={pagination}
+        pagination={{
+          current: page,
+          pageSize,
+          total,
+          onChange: (nextPage, nextPageSize) => {
+            setPage(nextPage);
+            setPageSize(nextPageSize);
+          },
+        }}
       />
 
       <Modal
@@ -279,54 +362,59 @@ export default function RolesPage() {
       >
         <div className="space-y-4 pt-2">
           <TextField
+            name="code"
+            control={control}
+            label="Mã nhóm quyền"
+            required
+            disabled={!!editing}
+            placeholder="VD: content-editor"
+            helpText={editing ? "Contract không cho đổi code sau khi tạo" : undefined}
+            rules={{ required: "Vui lòng nhập mã nhóm quyền" }}
+          />
+          <TextField
             name="name"
             control={control}
             label="Tên nhóm quyền"
             required
             rules={{ required: "Vui lòng nhập tên nhóm quyền" }}
           />
-          <TextAreaField
-            name="description"
-            control={control}
-            label="Mô tả"
-            rows={2}
-          />
+          <TextAreaField name="description" control={control} label="Mô tả" rows={2} />
 
           <Controller
             name="permissions"
             control={control}
-            render={({ field }) => (
-              <FormItemLayout
-                label="Quyền truy cập"
-                helpText={`Đã chọn ${field.value.length}/${ALL_PERMISSIONS.length} quyền`}
-              >
-                <Checkbox.Group
-                  value={field.value}
-                  onChange={field.onChange}
-                  className="w-full"
+            render={({ field }) => {
+              const permissionCount = permissionGroups.reduce(
+                (sum, group) => sum + group.permissions.length,
+                0,
+              );
+
+              return (
+                <FormItemLayout
+                  label="Quyền truy cập"
+                  helpText={`Đã chọn ${field.value.length}/${permissionCount} quyền`}
                 >
-                  <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
-                    {PERMISSION_GROUPS.map((group) => (
-                      <div
-                        key={group.title}
-                        className="border-line rounded-md border p-3"
-                      >
-                        <div className="text-muted mb-2 text-xs font-semibold uppercase">
-                          {group.title}
+                  <Checkbox.Group value={field.value} onChange={field.onChange} className="w-full">
+                    <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
+                      {permissionGroups.map((group) => (
+                        <div key={group.module} className="border-line rounded-md border p-3">
+                          <div className="text-muted mb-2 text-xs font-semibold uppercase">
+                            {moduleTitle(group.module)}
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            {group.permissions.map((permission) => (
+                              <Checkbox key={permission.code} value={permission.code}>
+                                {permission.name}
+                              </Checkbox>
+                            ))}
+                          </div>
                         </div>
-                        <div className="flex flex-col gap-1">
-                          {group.items.map((permission) => (
-                            <Checkbox key={permission} value={permission}>
-                              {PERMISSION_LABEL[permission]}
-                            </Checkbox>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </Checkbox.Group>
-              </FormItemLayout>
-            )}
+                      ))}
+                    </div>
+                  </Checkbox.Group>
+                </FormItemLayout>
+              );
+            }}
           />
         </div>
       </Modal>
@@ -343,6 +431,7 @@ export default function RolesPage() {
           size="small"
           columns={memberColumns}
           dataSource={members}
+          loading={membersLoading}
           pagination={false}
           scroll={{ y: 320 }}
         />

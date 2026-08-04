@@ -1,7 +1,3 @@
-import { notFound } from "next/navigation";
-
-import { adminUsers } from "@/mock/admin-users";
-
 import { AdminUserForm } from "../AdminUserForm";
 
 export default async function EditAdminUserPage({
@@ -10,9 +6,5 @@ export default async function EditAdminUserPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const user = adminUsers.find((item) => item.id === id);
-
-  if (!user) notFound();
-
-  return <AdminUserForm user={user} />;
+  return <AdminUserForm userId={id} />;
 }

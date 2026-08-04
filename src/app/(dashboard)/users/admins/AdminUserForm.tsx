@@ -1,27 +1,26 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { notFound, useRouter } from "next/navigation";
 import { App, Button, Tooltip } from "antd";
 import { Dices } from "lucide-react";
 import { useForm } from "react-hook-form";
 
 import { PageHeader } from "@/components/common/PageHeader";
-import {
-  SelectField,
-  SwitchField,
-  TextField,
-} from "@/components/form/fields";
+import { SelectField, SwitchField, TextField } from "@/components/form/fields";
 import routes from "@/config/routes";
-import { fakeMutate } from "@/lib/fakeFetch";
+import { fetchRoleOptions, roleOptionsToSelectOptions } from "@/lib/api/roles";
+import { assignUserRole, createUser, fetchUser, toAdminUser, updateUser } from "@/lib/api/users";
 import { generatePassword } from "@/lib/utils";
-import { adminRoleOptions } from "@/mock/admin-users";
 import type { AdminUser } from "@/types/admin-user";
+import type { SelectOption } from "@/types/common";
 
 interface AdminUserFormValues {
+  username: string;
   name: string;
-  email: string;
-  roleId?: string;
+  email?: string;
+  phone?: string;
+  roleCode?: string;
   active: boolean;
   password: string;
   confirmPassword: string;
@@ -29,9 +28,11 @@ interface AdminUserFormValues {
 
 function toFormValues(user?: AdminUser): AdminUserFormValues {
   return {
+    username: user?.username ?? "",
     name: user?.name ?? "",
     email: user?.email ?? "",
-    roleId: user?.roleId,
+    phone: user?.phone ?? "",
+    roleCode: user?.roleCode,
     active: user ? user.status === "active" : true,
     password: "",
     confirmPassword: "",
@@ -39,26 +40,63 @@ function toFormValues(user?: AdminUser): AdminUserFormValues {
 }
 
 interface AdminUserFormProps {
-  user?: AdminUser;
+  userId?: string;
 }
 
-/**
- * Form dùng chung cho tạo mới và chỉnh sửa quản trị viên. Mật khẩu chỉ áp
- * dụng khi tạo mới — trang chi tiết/sửa chỉ còn thông tin cơ bản và nhóm
- * quyền, đúng yêu cầu "trang quản trị viên chỉ hiển thị danh sách, role của
- * họ, và trang detail edit".
- */
-export function AdminUserForm({ user }: AdminUserFormProps) {
+export function AdminUserForm({ userId }: AdminUserFormProps) {
   const router = useRouter();
   const { message } = App.useApp();
+  const [user, setUser] = useState<AdminUser | undefined>();
+  const [loading, setLoading] = useState(!!userId);
+  const [notFoundState, setNotFoundState] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [roleOptions, setRoleOptions] = useState<SelectOption[]>([]);
 
-  const isEdit = !!user;
+  const isEdit = !!userId;
 
-  const { control, handleSubmit, reset, setValue } =
-    useForm<AdminUserFormValues>({
-      defaultValues: toFormValues(user),
-    });
+  const { control, handleSubmit, reset, setValue } = useForm<AdminUserFormValues>({
+    defaultValues: toFormValues(user),
+  });
+
+  useEffect(() => {
+    fetchRoleOptions()
+      .then((options) =>
+        setRoleOptions(
+          roleOptionsToSelectOptions(options.filter((role) => role.code !== "customer")),
+        ),
+      )
+      .catch(() => setRoleOptions([]));
+  }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    let cancelled = false;
+    fetchUser(userId)
+      .then((record) => {
+        if (cancelled) return;
+        const nextUser = toAdminUser(record);
+        setUser(nextUser);
+        reset(toFormValues(nextUser));
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        if (error && typeof error === "object" && "status" in error && error.status === 404) {
+          setNotFoundState(true);
+          return;
+        }
+        message.error(error instanceof Error ? error.message : "Không tải được quản trị viên");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [message, reset, userId]);
+
+  if (notFoundState) notFound();
 
   const fillRandomPassword = () => {
     const generated = generatePassword();
@@ -69,13 +107,43 @@ export function AdminUserForm({ user }: AdminUserFormProps) {
 
   const onSubmit = handleSubmit(async (values) => {
     setSubmitting(true);
-    await fakeMutate(values);
-    setSubmitting(false);
-    message.success(
-      isEdit ? "Đã cập nhật quản trị viên" : "Đã tạo quản trị viên mới",
-    );
-    router.push(routes.users.admins.index);
+    try {
+      const status = values.active ? "active" : "inactive";
+
+      if (isEdit && userId) {
+        await updateUser(userId, {
+          username: values.username,
+          email: values.email,
+          fullName: values.name,
+          phone: values.phone,
+          status,
+        });
+        if (values.roleCode && values.roleCode !== user?.roleCode) {
+          await assignUserRole(userId, values.roleCode);
+        }
+        message.success("Đã cập nhật quản trị viên");
+      } else {
+        await createUser({
+          username: values.username,
+          email: values.email,
+          password: values.password,
+          fullName: values.name,
+          phone: values.phone,
+          roleCode: values.roleCode,
+          status,
+        });
+        message.success("Đã tạo quản trị viên mới");
+      }
+
+      router.push(routes.users.admins.index);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Không lưu được quản trị viên");
+    } finally {
+      setSubmitting(false);
+    }
   });
+
+  const restore = () => reset(toFormValues(user));
 
   return (
     <form onSubmit={onSubmit}>
@@ -83,7 +151,9 @@ export function AdminUserForm({ user }: AdminUserFormProps) {
         title={isEdit ? "Chỉnh sửa quản trị viên" : "Thêm quản trị viên"}
         description={
           isEdit
-            ? `Cập nhật thông tin cho ${user.name}`
+            ? user
+              ? `Cập nhật thông tin cho ${user.name}`
+              : "Đang tải thông tin quản trị viên"
             : "Tạo tài khoản đăng nhập mới cho quản trị viên"
         }
         breadcrumb={[
@@ -92,13 +162,10 @@ export function AdminUserForm({ user }: AdminUserFormProps) {
         ]}
         extra={
           <>
-            <Button
-              onClick={() => reset(toFormValues(user))}
-              disabled={submitting}
-            >
+            <Button onClick={restore} disabled={submitting || loading}>
               Khôi phục
             </Button>
-            <Button type="primary" htmlType="submit" loading={submitting}>
+            <Button type="primary" htmlType="submit" loading={submitting} disabled={loading}>
               {isEdit ? "Lưu thay đổi" : "Tạo tài khoản"}
             </Button>
           </>
@@ -110,37 +177,52 @@ export function AdminUserForm({ user }: AdminUserFormProps) {
           <h3 className="text-fg font-semibold">Thông tin tài khoản</h3>
 
           <TextField
+            name="username"
+            control={control}
+            label="Username"
+            required
+            disabled={loading}
+            placeholder="VD: staff01"
+            rules={{ required: "Vui lòng nhập username" }}
+          />
+          <TextField
             name="name"
             control={control}
             label="Họ và tên"
             required
+            disabled={loading}
             placeholder="VD: Trần Hữu Phước"
             rules={{ required: "Vui lòng nhập họ tên" }}
           />
           <TextField
             name="email"
             control={control}
-            label="Email đăng nhập"
-            required
-            disabled={isEdit}
+            label="Email"
+            disabled={loading}
             placeholder="VD: staff01@d-computer.vn"
-            helpText={isEdit ? "Không thể đổi email sau khi tạo tài khoản" : undefined}
             rules={{
-              required: "Vui lòng nhập email",
               pattern: {
                 value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
                 message: "Email không hợp lệ",
               },
             }}
           />
+          <TextField
+            name="phone"
+            control={control}
+            label="Số điện thoại"
+            disabled={loading}
+            placeholder="VD: 0901234567"
+          />
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <SelectField
-              name="roleId"
+              name="roleCode"
               control={control}
               label="Nhóm quyền"
               required
-              options={adminRoleOptions}
+              disabled={loading}
+              options={roleOptions}
               rules={{ required: "Vui lòng chọn nhóm quyền" }}
             />
             <SwitchField
@@ -148,7 +230,8 @@ export function AdminUserForm({ user }: AdminUserFormProps) {
               control={control}
               label="Trạng thái"
               checkedLabel="Đang hoạt động"
-              uncheckedLabel="Tạm khoá"
+              uncheckedLabel="Ngừng hoạt động"
+              disabled={loading}
             />
           </div>
         </section>
@@ -158,11 +241,7 @@ export function AdminUserForm({ user }: AdminUserFormProps) {
             <div className="flex items-center justify-between">
               <h3 className="text-fg font-semibold">Mật khẩu đăng nhập</h3>
               <Tooltip title="Tạo mật khẩu ngẫu nhiên">
-                <Button
-                  size="small"
-                  icon={<Dices size={14} />}
-                  onClick={fillRandomPassword}
-                >
+                <Button size="small" icon={<Dices size={14} />} onClick={fillRandomPassword}>
                   Tạo tự động
                 </Button>
               </Tooltip>
@@ -174,10 +253,10 @@ export function AdminUserForm({ user }: AdminUserFormProps) {
               label="Mật khẩu"
               type="password"
               required
-              placeholder="Tối thiểu 8 ký tự"
+              placeholder="Tối thiểu 6 ký tự"
               rules={{
                 required: "Vui lòng nhập mật khẩu",
-                minLength: { value: 8, message: "Mật khẩu cần tối thiểu 8 ký tự" },
+                minLength: { value: 6, message: "Mật khẩu cần tối thiểu 6 ký tự" },
               }}
             />
             <TextField

@@ -1,17 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  App,
-  Avatar,
-  Button,
-  Input,
-  Popconfirm,
-  Select,
-  Space,
-  Tooltip,
-} from "antd";
+import { App, Avatar, Button, Input, Popconfirm, Select, Space, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import { Pencil, Plus, Trash2 } from "lucide-react";
@@ -22,24 +13,25 @@ import { AdminStatusTag } from "@/components/common/StatusTag";
 import { FormItemLayout } from "@/components/form/FormItemLayout";
 import { SearchFilterBar } from "@/components/form/SearchFilterBar";
 import routes from "@/config/routes";
-import { useListQuery } from "@/hooks/useListQuery";
-import { matchEquals, matchText } from "@/lib/fakeFetch";
-import { adminRoleOptions, adminUsers } from "@/mock/admin-users";
+import { fetchRoleOptions, roleOptionsToSelectOptions } from "@/lib/api/roles";
+import { deleteUser, listAdminUsers } from "@/lib/api/users";
 import {
   ADMIN_USER_STATUS_LABEL,
   type AdminUser,
   type AdminUserStatus,
 } from "@/types/admin-user";
+import { DEFAULT_PAGE_SIZE, type SelectOption } from "@/types/common";
 
 interface AdminUserFilters {
   keyword: string;
-  roleId?: string;
+  roleCode?: string;
   status?: AdminUserStatus;
 }
 
-const STATUS_OPTIONS = Object.entries(ADMIN_USER_STATUS_LABEL).map(
-  ([value, label]) => ({ label, value }),
-);
+const STATUS_OPTIONS = Object.entries(ADMIN_USER_STATUS_LABEL).map(([value, label]) => ({
+  label,
+  value,
+}));
 
 function initialsOf(name: string) {
   return name
@@ -50,25 +42,77 @@ function initialsOf(name: string) {
     .join("");
 }
 
-/**
- * Trang "Quản trị viên" giờ chỉ còn danh sách tài khoản + role của họ (chỉ
- * đọc, chọn role có sẵn từ trang Quản lý quyền). Tạo mới và chỉnh sửa nằm ở
- * các trang riêng (`AdminUserForm`), không còn dùng Modal như trước.
- */
 export default function AdminUsersPage() {
   const { message } = App.useApp();
+  const [rows, setRows] = useState<AdminUser[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState<AdminUserFilters>({ keyword: "" });
+  const [appliedFilters, setAppliedFilters] = useState<AdminUserFilters>({ keyword: "" });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [roleOptions, setRoleOptions] = useState<SelectOption[]>([]);
 
-  const { rows, loading, filters, patchFilters, search, reset, pagination } =
-    useListQuery<AdminUser, AdminUserFilters>({
-      source: adminUsers,
-      initialFilters: { keyword: "" },
-      buildFilters: (f) => [
-        matchText(f.keyword, (item) => [item.name, item.email]),
-        matchEquals(f.roleId, (item) => item.roleId),
-        matchEquals(f.status, (item) => item.status),
-      ],
-      sorter: (a, b) => b.createdAt.localeCompare(a.createdAt),
-    });
+  const loadRows = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await listAdminUsers({
+        page,
+        limit: pageSize,
+        search: appliedFilters.keyword,
+        roleCode: appliedFilters.roleCode,
+        status: appliedFilters.status,
+        sortBy: "createdAt",
+        sortOrder: "DESC",
+      });
+      setRows(response.data);
+      setTotal(response.total);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Không tải được danh sách quản trị viên");
+    } finally {
+      setLoading(false);
+    }
+  }, [appliedFilters, message, page, pageSize]);
+
+  useEffect(() => {
+    fetchRoleOptions()
+      .then((options) =>
+        setRoleOptions(
+          roleOptionsToSelectOptions(options.filter((role) => role.code !== "customer")),
+        ),
+      )
+      .catch(() => setRoleOptions([]));
+  }, []);
+
+  useEffect(() => {
+    queueMicrotask(() => void loadRows());
+  }, [loadRows]);
+
+  const patchFilters = (patch: Partial<AdminUserFilters>) => {
+    setFilters((current) => ({ ...current, ...patch }));
+  };
+
+  const search = () => {
+    setPage(1);
+    setAppliedFilters({ ...filters });
+  };
+
+  const reset = () => {
+    const next = { keyword: "" };
+    setPage(1);
+    setFilters(next);
+    setAppliedFilters(next);
+  };
+
+  const handleDelete = async (record: AdminUser) => {
+    try {
+      await deleteUser(record.id);
+      message.success(`Đã xoá tài khoản ${record.name}`);
+      await loadRows();
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Không xoá được quản trị viên");
+    }
+  };
 
   const columns = useMemo<ColumnsType<AdminUser>>(
     () => [
@@ -79,26 +123,19 @@ export default function AdminUsersPage() {
         width: 260,
         render: (name: string, record) => (
           <div className="flex min-w-0 items-center gap-3">
-            <Avatar size={32} className="shrink-0 text-xs font-semibold">
-              {initialsOf(name)}
+            <Avatar size={32} src={record.avatarUrl} className="shrink-0 text-xs font-semibold">
+              {initialsOf(name || record.username)}
             </Avatar>
             <div className="min-w-0">
-              <Link
-                href={routes.users.admins.detail(record.id)}
-                className="line-clamp-1 font-semibold"
-              >
-                {name}
+              <Link href={routes.users.admins.detail(record.id)} className="line-clamp-1 font-semibold">
+                {name || record.username}
               </Link>
-              <div className="text-muted truncate text-xs">{record.email}</div>
+              <div className="text-muted truncate text-xs">{record.email ?? record.username}</div>
             </div>
           </div>
         ),
       },
-      {
-        title: "Nhóm quyền",
-        dataIndex: "roleName",
-        width: 200,
-      },
+      { title: "Nhóm quyền", dataIndex: "roleName", width: 200 },
       {
         title: "Trạng thái",
         dataIndex: "status",
@@ -110,8 +147,7 @@ export default function AdminUsersPage() {
         title: "Đăng nhập gần nhất",
         dataIndex: "lastLoginAt",
         width: 170,
-        sorter: (a, b) => a.lastLoginAt.localeCompare(b.lastLoginAt),
-        render: (value: string) => dayjs(value).format("HH:mm DD/MM/YYYY"),
+        render: (value?: string) => (value ? dayjs(value).format("HH:mm DD/MM/YYYY") : "—"),
       },
       {
         title: "Ngày tạo",
@@ -138,22 +174,18 @@ export default function AdminUsersPage() {
               okText="Xoá"
               cancelText="Huỷ"
               okButtonProps={{ danger: true }}
-              onConfirm={() => message.success(`Đã xoá tài khoản ${record.name}`)}
+              onConfirm={() => handleDelete(record)}
             >
               <Tooltip title="Xoá">
-                <Button
-                  type="text"
-                  size="small"
-                  danger
-                  icon={<Trash2 size={16} />}
-                />
+                <Button type="text" size="small" danger icon={<Trash2 size={16} />} />
               </Tooltip>
             </Popconfirm>
           </Space>
         ),
       },
     ],
-    [message],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
   );
 
   return (
@@ -186,9 +218,9 @@ export default function AdminUsersPage() {
             showSearch
             optionFilterProp="label"
             placeholder="Tất cả nhóm quyền"
-            options={adminRoleOptions}
-            value={filters.roleId}
-            onChange={(roleId) => patchFilters({ roleId })}
+            options={roleOptions}
+            value={filters.roleCode}
+            onChange={(roleCode) => patchFilters({ roleCode })}
             className="w-full"
           />
         </FormItemLayout>
@@ -210,7 +242,15 @@ export default function AdminUsersPage() {
         columns={columns}
         dataSource={rows}
         loading={loading}
-        pagination={pagination}
+        pagination={{
+          current: page,
+          pageSize,
+          total,
+          onChange: (nextPage, nextPageSize) => {
+            setPage(nextPage);
+            setPageSize(nextPageSize);
+          },
+        }}
       />
     </>
   );

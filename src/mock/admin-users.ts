@@ -11,6 +11,7 @@ import { faker, seedFaker } from "./utils";
 export const adminRoles: AdminRole[] = [
   {
     id: "role-super-admin",
+    code: "admin",
     name: "Quản trị hệ thống",
     description: "Toàn quyền trên mọi phân hệ, kể cả quản lý tài khoản quản trị",
     permissions: [
@@ -32,6 +33,7 @@ export const adminRoles: AdminRole[] = [
   },
   {
     id: "role-product-manager",
+    code: "product-manager",
     name: "Quản lý sản phẩm",
     description: "Quản lý danh mục, thương hiệu và thông tin sản phẩm",
     permissions: ["dashboard:view", "product:view", "product:edit", "warehouse:view"],
@@ -40,6 +42,7 @@ export const adminRoles: AdminRole[] = [
   },
   {
     id: "role-sales",
+    code: "sales",
     name: "Nhân viên bán hàng",
     description: "Xử lý đơn hàng và chăm sóc khách hàng",
     permissions: ["dashboard:view", "order:view", "order:edit", "customer:view", "product:view"],
@@ -48,6 +51,7 @@ export const adminRoles: AdminRole[] = [
   },
   {
     id: "role-warehouse",
+    code: "warehouse",
     name: "Nhân viên kho",
     description: "Nhập xuất kho và kiểm kê tồn kho",
     permissions: ["warehouse:view", "warehouse:edit", "product:view"],
@@ -56,6 +60,7 @@ export const adminRoles: AdminRole[] = [
   },
   {
     id: "role-content",
+    code: "content",
     name: "Biên tập nội dung",
     description: "Soạn thảo và xuất bản bài viết",
     permissions: ["post:view", "post:edit", "product:view"],
@@ -64,6 +69,7 @@ export const adminRoles: AdminRole[] = [
   },
   {
     id: "role-viewer",
+    code: "viewer",
     name: "Chỉ xem",
     description: "Chỉ xem báo cáo, không có quyền chỉnh sửa",
     permissions: ["dashboard:view", "product:view", "order:view", "customer:view"],
@@ -74,7 +80,7 @@ export const adminRoles: AdminRole[] = [
 
 const STATUS_WEIGHTS: AdminUserStatus[] = [
   ...Array<AdminUserStatus>(9).fill("active"),
-  "suspended",
+  "inactive",
 ];
 
 function generateAdminUsers(count: number): AdminUser[] {
@@ -85,9 +91,10 @@ function generateAdminUsers(count: number): AdminUser[] {
 
     return {
       id: `adm-${String(index + 1).padStart(3, "0")}`,
+      username: `staff${index + 1}`,
       name: faker.person.fullName(),
       email: `staff${index + 1}@d-computer.vn`,
-      roleId: role.id,
+      roleCode: role.code,
       roleName: role.name,
       status: faker.helpers.arrayElement(STATUS_WEIGHTS),
       lastLoginAt: faker.date
@@ -104,14 +111,14 @@ export const adminUsers = generateAdminUsers(24);
 
 adminRoles.forEach((role) => {
   role.memberCount = adminUsers.filter(
-    (user) => user.roleId === role.id,
+    (user) => user.roleCode === role.code,
   ).length;
 });
 
 /** Danh sách nhóm quyền cho các ô Select (form tạo/sửa quản trị viên, bộ lọc) */
 export const adminRoleOptions = adminRoles.map((role) => ({
   label: role.name,
-  value: role.id,
+  value: role.code,
 }));
 
 export const ALL_PERMISSIONS: Permission[] = [

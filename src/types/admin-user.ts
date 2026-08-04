@@ -1,56 +1,49 @@
-export type AdminUserStatus = "active" | "suspended";
+export type AdminUserStatus = "active" | "inactive" | "banned";
 
-/** Quyền dạng `resource:action` — đủ để dựng cây phân quyền trong UI */
-export type Permission =
-  | "dashboard:view"
-  | "product:view"
-  | "product:edit"
-  | "order:view"
-  | "order:edit"
-  | "customer:view"
-  | "customer:edit"
-  | "warehouse:view"
-  | "warehouse:edit"
-  | "post:view"
-  | "post:edit"
-  | "admin:manage";
+/** Contract trả permission code dạng chuỗi (`product.manage`, `user.admin.manage`, ...). */
+export type Permission = string;
 
 export interface AdminRole {
   id: string;
+  code: string;
   name: string;
   description: string;
   permissions: Permission[];
   memberCount: number;
+  isSystem?: boolean;
   createdAt: string;
 }
 
 export interface AdminUser {
   id: string;
+  username: string;
   name: string;
-  email: string;
-  roleId: string;
+  email?: string;
+  phone?: string;
+  avatarUrl?: string;
+  roleCode: string;
   roleName: string;
   status: AdminUserStatus;
-  lastLoginAt: string;
+  lastLoginAt?: string;
   createdAt: string;
 }
 
-export const PERMISSION_LABEL: Record<Permission, string> = {
-  "dashboard:view": "Xem tổng quan",
-  "product:view": "Xem sản phẩm",
-  "product:edit": "Sửa sản phẩm",
-  "order:view": "Xem đơn hàng",
-  "order:edit": "Xử lý đơn hàng",
-  "customer:view": "Xem khách hàng",
-  "customer:edit": "Sửa khách hàng",
-  "warehouse:view": "Xem kho",
-  "warehouse:edit": "Nhập/xuất kho",
-  "post:view": "Xem bài viết",
-  "post:edit": "Sửa bài viết",
-  "admin:manage": "Quản trị hệ thống",
+export const PERMISSION_LABEL: Record<string, string> = {
+  "dashboard.view": "Xem tổng quan",
+  "product.manage": "Quản lý sản phẩm",
+  "product.category.manage": "Quản lý danh mục",
+  "product.brand.manage": "Quản lý thương hiệu",
+  "orders.manage": "Quản lý đơn hàng",
+  "user.customer.manage": "Quản lý khách hàng",
+  "user.admin.manage": "Quản lý quản trị viên",
+  "user.role.manage": "Quản lý phân quyền",
+  "inventory.manage": "Quản lý kho",
+  "articles.manage": "Quản lý bài viết",
+  "logs.view": "Xem nhật ký",
 };
 
 export const ADMIN_USER_STATUS_LABEL: Record<AdminUserStatus, string> = {
   active: "Đang hoạt động",
-  suspended: "Tạm khoá",
+  inactive: "Ngừng hoạt động",
+  banned: "Bị khoá",
 };

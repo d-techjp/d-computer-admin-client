@@ -45,7 +45,7 @@ const POST_COLOR: Record<PostStatus, string> = {
 const CUSTOMER_COLOR: Record<CustomerStatus, string> = {
   active: "green",
   inactive: "default",
-  blocked: "red",
+  banned: "red",
 };
 
 const TIER_COLOR: Record<CustomerTier, string> = {
@@ -57,7 +57,8 @@ const TIER_COLOR: Record<CustomerTier, string> = {
 
 const ADMIN_COLOR: Record<AdminUserStatus, string> = {
   active: "green",
-  suspended: "red",
+  inactive: "default",
+  banned: "red",
 };
 
 const STOCK_COLOR: Record<StockLevel, string> = {

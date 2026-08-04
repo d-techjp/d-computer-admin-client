@@ -163,7 +163,7 @@ function generateActivityLogs(count: number): ActivityLog[] {
       id: `log-${String(index + 1).padStart(4, "0")}`,
       actorId: actor.id,
       actorName: actor.name,
-      actorEmail: actor.email,
+      actorEmail: actor.email ?? actor.username,
       actorRole: actor.roleName,
       action,
       module: logModule,

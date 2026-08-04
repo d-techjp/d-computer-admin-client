@@ -1,12 +1,13 @@
-export type CustomerStatus = "active" | "inactive" | "blocked";
+export type CustomerStatus = "active" | "inactive" | "banned";
 export type CustomerTier = "normal" | "silver" | "gold" | "diamond";
 
 export interface Customer {
   id: string;
+  username: string;
   name: string;
-  email: string;
-  phone: string;
-  address: string;
+  email?: string;
+  phone?: string;
+  address?: string;
   tier: CustomerTier;
   totalOrders: number;
   totalSpent: number;
@@ -17,7 +18,7 @@ export interface Customer {
 export const CUSTOMER_STATUS_LABEL: Record<CustomerStatus, string> = {
   active: "Đang hoạt động",
   inactive: "Ngừng hoạt động",
-  blocked: "Bị khoá",
+  banned: "Bị khoá",
 };
 
 export const CUSTOMER_TIER_LABEL: Record<CustomerTier, string> = {
