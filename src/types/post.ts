@@ -5,6 +5,8 @@ export interface Post {
   title: string;
   slug: string;
   category: string;
+  /** Liên kết tới `Category` thật (bảng chung với sản phẩm) — trống nếu chưa gắn danh mục */
+  categoryId?: string;
   author: string;
   excerpt: string;
   /** Nội dung dạng HTML do trình soạn thảo TipTap sinh ra */
@@ -12,6 +14,10 @@ export interface Post {
   /** Ảnh bìa hiển thị ở danh sách bài viết và khi chia sẻ */
   coverImage?: string;
   status: PostStatus;
+  tags?: string[];
+  /** SEO — hiển thị ở thẻ <title>/<meta description> khi chia sẻ bài viết */
+  metaTitle?: string;
+  metaDescription?: string;
   viewCount: number;
   publishedAt?: string;
   createdAt: string;

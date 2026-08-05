@@ -1,68 +1,122 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { App, Button, Input, Popconfirm, Select, Space, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Send, Trash2, Undo2 } from "lucide-react";
 
 import { DataTable } from "@/components/common/DataTable";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PostStatusTag } from "@/components/common/StatusTag";
-import {
-  DatePickerPresetRange,
-  resolvePreset,
-  type DateRangeSearchValue,
-} from "@/components/form/DatePickerPresetRange";
 import { FormItemLayout } from "@/components/form/FormItemLayout";
 import { SearchFilterBar } from "@/components/form/SearchFilterBar";
 import routes from "@/config/routes";
-import { useListQuery } from "@/hooks/useListQuery";
-import { matchDateRange, matchEquals, matchText } from "@/lib/fakeFetch";
+import { deletePost, listPosts, publishPost, unpublishPost } from "@/lib/api/articles";
+import { categoryOptionsFrom, listCategories } from "@/lib/api/products";
 import { formatNumber } from "@/lib/utils";
-import { posts } from "@/mock/posts";
-import {
-  POST_CATEGORIES,
-  POST_STATUS_LABEL,
-  type Post,
-  type PostStatus,
-} from "@/types/post";
+import { DEFAULT_PAGE_SIZE, type SelectOption } from "@/types/common";
+import { POST_STATUS_LABEL, type Post, type PostStatus } from "@/types/post";
 
 interface PostFilters {
   keyword: string;
-  category?: string;
+  categoryId?: string;
   status?: PostStatus;
-  createdRange: DateRangeSearchValue;
+  tag?: string;
 }
 
 const STATUS_OPTIONS = Object.entries(POST_STATUS_LABEL).map(
   ([value, label]) => ({ label, value }),
 );
 
-const CATEGORY_OPTIONS = POST_CATEGORIES.map((name) => ({
-  label: name,
-  value: name,
-}));
-
 export default function PostsPage() {
   const { message } = App.useApp();
+  const [rows, setRows] = useState<Post[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState<PostFilters>({ keyword: "" });
+  const [appliedFilters, setAppliedFilters] = useState<PostFilters>({ keyword: "" });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([]);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  const { rows, loading, filters, patchFilters, search, reset, pagination } =
-    useListQuery<Post, PostFilters>({
-      source: posts,
-      initialFilters: { keyword: "", createdRange: resolvePreset("custom") },
-      buildFilters: (f) => [
-        matchText(f.keyword, (item) => [item.title, item.slug, item.author]),
-        matchEquals(f.category, (item) => item.category),
-        matchEquals(f.status, (item) => item.status),
-        matchDateRange(
-          f.createdRange.from,
-          f.createdRange.to,
-          (item) => item.createdAt,
-        ),
-      ],
-    });
+  const loadRows = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await listPosts({
+        page,
+        limit: pageSize,
+        search: appliedFilters.keyword,
+        categoryId: appliedFilters.categoryId,
+        status: appliedFilters.status,
+        tag: appliedFilters.tag,
+        sortBy: "createdAt",
+        sortOrder: "DESC",
+      });
+      setRows(response.data);
+      setTotal(response.total);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Không tải được danh sách bài viết");
+    } finally {
+      setLoading(false);
+    }
+  }, [appliedFilters, message, page, pageSize]);
+
+  useEffect(() => {
+    queueMicrotask(() => void loadRows());
+  }, [loadRows]);
+
+  useEffect(() => {
+    listCategories({ page: 1, limit: 100, sortBy: "name", sortOrder: "ASC", isActive: true })
+      .then((response) => setCategoryOptions(categoryOptionsFrom(response.data)))
+      .catch(() => setCategoryOptions([]));
+  }, []);
+
+  const patchFilters = (patch: Partial<PostFilters>) => {
+    setFilters((current) => ({ ...current, ...patch }));
+  };
+
+  const search = () => {
+    setPage(1);
+    setAppliedFilters({ ...filters });
+  };
+
+  const reset = () => {
+    const next = { keyword: "" };
+    setPage(1);
+    setFilters(next);
+    setAppliedFilters(next);
+  };
+
+  const handleDelete = async (record: Post) => {
+    try {
+      await deletePost(record.id);
+      message.success("Đã xoá bài viết");
+      await loadRows();
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Không xoá được bài viết");
+    }
+  };
+
+  const handleToggleStatus = async (record: Post) => {
+    setTogglingId(record.id);
+    try {
+      if (record.status === "published") {
+        await unpublishPost(record.id);
+        message.success("Đã gỡ xuất bản");
+      } else {
+        await publishPost(record.id);
+        message.success("Đã xuất bản bài viết");
+      }
+      await loadRows();
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Không đổi được trạng thái");
+    } finally {
+      setTogglingId(null);
+    }
+  };
 
   const columns = useMemo<ColumnsType<Post>>(
     () => [
@@ -83,14 +137,23 @@ export default function PostsPage() {
           </div>
         ),
       },
-      { title: "Chuyên mục", dataIndex: "category", width: 160 },
-      { title: "Tác giả", dataIndex: "author", width: 180 },
+      {
+        title: "Chuyên mục",
+        dataIndex: "category",
+        width: 160,
+        render: (value: string) => value || <span className="text-muted">—</span>,
+      },
+      {
+        title: "Tác giả",
+        dataIndex: "author",
+        width: 180,
+        render: (value: string) => value || <span className="text-muted">—</span>,
+      },
       {
         title: "Lượt xem",
         dataIndex: "viewCount",
         width: 110,
         align: "right",
-        sorter: (a, b) => a.viewCount - b.viewCount,
         render: (value: number) => formatNumber(value),
       },
       {
@@ -104,8 +167,6 @@ export default function PostsPage() {
         title: "Ngày đăng",
         dataIndex: "publishedAt",
         width: 130,
-        sorter: (a, b) =>
-          (a.publishedAt ?? "").localeCompare(b.publishedAt ?? ""),
         render: (value?: string) =>
           value ? (
             dayjs(value).format("DD/MM/YYYY")
@@ -116,11 +177,26 @@ export default function PostsPage() {
       {
         title: "Thao tác",
         key: "actions",
-        width: 100,
+        width: 140,
         align: "center",
         fixed: "right",
         render: (_, record) => (
           <Space size="small">
+            <Tooltip title={record.status === "published" ? "Gỡ xuất bản" : "Xuất bản"}>
+              <Button
+                type="text"
+                size="small"
+                loading={togglingId === record.id}
+                icon={
+                  record.status === "published" ? (
+                    <Undo2 size={16} />
+                  ) : (
+                    <Send size={16} />
+                  )
+                }
+                onClick={() => handleToggleStatus(record)}
+              />
+            </Tooltip>
             <Tooltip title="Sửa">
               <Link href={routes.posts.detail(record.id)}>
                 <Button type="text" size="small" icon={<Pencil size={16} />} />
@@ -128,10 +204,11 @@ export default function PostsPage() {
             </Tooltip>
             <Popconfirm
               title="Xoá bài viết này?"
+              description="Thao tác không thể hoàn tác."
               okText="Xoá"
               cancelText="Huỷ"
               okButtonProps={{ danger: true }}
-              onConfirm={() => message.success("Đã xoá bài viết")}
+              onConfirm={() => handleDelete(record)}
             >
               <Tooltip title="Xoá">
                 <Button
@@ -146,7 +223,8 @@ export default function PostsPage() {
         ),
       },
     ],
-    [message],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [togglingId],
   );
 
   return (
@@ -164,7 +242,7 @@ export default function PostsPage() {
       />
 
       <SearchFilterBar onSearch={search} onReset={reset} loading={loading}>
-        <FormItemLayout label="Tiêu đề / tác giả">
+        <FormItemLayout label="Tiêu đề / thẻ">
           <Input
             allowClear
             placeholder="Nhập từ khoá tìm kiếm"
@@ -176,10 +254,12 @@ export default function PostsPage() {
         <FormItemLayout label="Chuyên mục">
           <Select
             allowClear
+            showSearch
+            optionFilterProp="label"
             placeholder="Tất cả chuyên mục"
-            options={CATEGORY_OPTIONS}
-            value={filters.category}
-            onChange={(category) => patchFilters({ category })}
+            options={categoryOptions}
+            value={filters.categoryId}
+            onChange={(categoryId) => patchFilters({ categoryId })}
             className="w-full"
           />
         </FormItemLayout>
@@ -195,11 +275,14 @@ export default function PostsPage() {
           />
         </FormItemLayout>
 
-        <DatePickerPresetRange
-          label="Ngày tạo"
-          value={filters.createdRange}
-          onChange={(createdRange) => patchFilters({ createdRange })}
-        />
+        <FormItemLayout label="Thẻ (tag)">
+          <Input
+            allowClear
+            placeholder="VD: laptop"
+            value={filters.tag}
+            onChange={(event) => patchFilters({ tag: event.target.value })}
+          />
+        </FormItemLayout>
       </SearchFilterBar>
 
       <DataTable<Post>
@@ -207,7 +290,15 @@ export default function PostsPage() {
         columns={columns}
         dataSource={rows}
         loading={loading}
-        pagination={pagination}
+        pagination={{
+          current: page,
+          pageSize,
+          total,
+          onChange: (nextPage, nextPageSize) => {
+            setPage(nextPage);
+            setPageSize(nextPageSize);
+          },
+        }}
       />
     </>
   );

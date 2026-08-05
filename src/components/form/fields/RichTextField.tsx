@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { App, Divider, Tooltip } from "antd";
 import { Placeholder } from "@tiptap/extensions";
 import { Image as TiptapImage } from "@tiptap/extension-image";
@@ -302,6 +302,30 @@ export function RichTextField<T extends FieldValues>({
     },
     onBlur: field.onBlur,
   });
+
+  /**
+   * `useEditor` chỉ đọc `content` lúc khởi tạo — khi form load dữ liệu bất đồng bộ
+   * (VD trang sửa bài viết gọi API rồi `reset()` sau khi editor đã mount) thì nội
+   * dung mới không tự hiện ra. Phải tự đẩy vào editor mỗi khi field.value đổi từ
+   * bên ngoài (bỏ qua nếu đang khớp, để không đè mất con trỏ lúc người dùng gõ).
+   */
+  useEffect(() => {
+    if (!editor) return;
+    const next = field.value ?? "";
+    if (next !== editor.getHTML()) {
+      editor.commands.setContent(next, { emitUpdate: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor, field.value]);
+
+  /**
+   * `EditorInstanceManager.onRender` của @tiptap/react luôn ép `editable` về giá
+   * trị lúc khởi tạo khi so sánh options (xem setOptions trong @tiptap/core), nên
+   * đổi prop `disabled` sau khi mount không có tác dụng nếu không tự setEditable.
+   */
+  useEffect(() => {
+    editor?.setEditable(!disabled);
+  }, [editor, disabled]);
 
   return (
     <FormItemLayout
