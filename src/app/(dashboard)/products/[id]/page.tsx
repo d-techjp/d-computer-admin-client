@@ -1,4 +1,7 @@
-import { ProductForm } from "../ProductForm";
+import { Suspense } from "react";
+import { Skeleton } from "antd";
+
+import { ProductWorkspace } from "../_components/ProductWorkspace";
 
 export default async function EditProductPage({
   params,
@@ -6,5 +9,12 @@ export default async function EditProductPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  return <ProductForm productId={id} />;
+
+  // ProductWorkspace đọc tab đang mở từ `useSearchParams`, nên cần Suspense
+  // boundary khi trang được prerender.
+  return (
+    <Suspense fallback={<Skeleton active paragraph={{ rows: 8 }} />}>
+      <ProductWorkspace productId={id} />
+    </Suspense>
+  );
 }

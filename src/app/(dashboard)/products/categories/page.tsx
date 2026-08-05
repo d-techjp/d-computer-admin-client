@@ -17,7 +17,7 @@ import {
   deleteCategory,
   listCategories,
   updateCategory,
-} from "@/lib/api/products";
+} from "@/lib/api/catalog";
 import { formatNumber } from "@/lib/utils";
 import { DEFAULT_PAGE_SIZE, type SelectOption } from "@/types/common";
 import type { Category } from "@/types/product";

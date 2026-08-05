@@ -3,7 +3,12 @@
 import { Tag } from "antd";
 
 import { ORDER_STATUS_LABEL, type OrderStatus } from "@/types/order";
-import { PRODUCT_STATUS_LABEL, type ProductStatus } from "@/types/product";
+import {
+  PRODUCT_STATUS_LABEL,
+  PRODUCT_TYPE_LABEL,
+  type ProductStatus,
+  type ProductType,
+} from "@/types/product";
 import { POST_STATUS_LABEL, type PostStatus } from "@/types/post";
 import {
   CUSTOMER_STATUS_LABEL,
@@ -35,6 +40,15 @@ const PRODUCT_COLOR: Record<ProductStatus, string> = {
   draft: "default",
   out_of_stock: "red",
   archived: "purple",
+};
+
+/**
+ * `standard` cố tình không có tag: hàng hoá thường chiếm đa số nên gắn chip
+ * cho mọi dòng chỉ làm nhiễu — chỉ combo và dịch vụ mới cần đánh dấu.
+ */
+const PRODUCT_TYPE_COLOR: Record<Exclude<ProductType, "standard">, string> = {
+  bundle: "geekblue",
+  service: "cyan",
 };
 
 const POST_COLOR: Record<PostStatus, string> = {
@@ -75,6 +89,11 @@ export const OrderStatusTag = ({ status }: { status: OrderStatus }) => (
 export const ProductStatusTag = ({ status }: { status: ProductStatus }) => (
   <Tag color={PRODUCT_COLOR[status]}>{PRODUCT_STATUS_LABEL[status]}</Tag>
 );
+
+export const ProductTypeTag = ({ type }: { type: ProductType }) =>
+  type === "standard" ? null : (
+    <Tag color={PRODUCT_TYPE_COLOR[type]}>{PRODUCT_TYPE_LABEL[type]}</Tag>
+  );
 
 export const PostStatusTag = ({ status }: { status: PostStatus }) => (
   <Tag color={POST_COLOR[status]}>{POST_STATUS_LABEL[status]}</Tag>

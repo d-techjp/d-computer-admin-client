@@ -1,7 +1,34 @@
-import type { Product, ProductStatus } from "@/types/product";
+import type { ProductSpec, ProductStatus } from "@/types/product";
 
 import { brands, categories } from "./catalog";
 import { faker, roundPrice, seedFaker } from "./utils";
+
+/**
+ * Sản phẩm giả lập dạng **phẳng** (một SKU, một giá, một tồn kho).
+ *
+ * Cố tình không dùng lại `Product` nữa: sản phẩm thật đã tách master/variant
+ * và mọi màn sản phẩm đều gọi API thật, nên dữ liệu giả ở đây chỉ còn phục vụ
+ * các màn chưa nối API (kho, đơn hàng). Giữ shape phẳng cho chúng đơn giản hơn
+ * là bắt mock phải dựng cả cây biến thể.
+ */
+export interface MockProduct {
+  id: string;
+  name: string;
+  sku: string;
+  brandId: string;
+  brandName: string;
+  categoryId: string;
+  categoryName: string;
+  price: number;
+  cost: number;
+  stock: number;
+  status: ProductStatus;
+  specs: ProductSpec[];
+  images: string[];
+  isFeatured: boolean;
+  shortDescription: string;
+  createdAt: string;
+}
 
 /**
  * Model gắn liền thương hiệu để tên sản phẩm đọc ra hợp lý
@@ -129,7 +156,7 @@ const STATUS_WEIGHTS: ProductStatus[] = [
   "out_of_stock",
 ];
 
-function generateProducts(count: number): Product[] {
+function generateProducts(count: number): MockProduct[] {
   seedFaker();
 
   return Array.from({ length: count }, (_, index) => {
@@ -201,7 +228,7 @@ function generateProducts(count: number): Product[] {
       createdAt: faker.date
         .between({ from: "2025-06-01", to: "2026-07-31" })
         .toISOString(),
-    } satisfies Product;
+    } satisfies MockProduct;
   });
 }
 

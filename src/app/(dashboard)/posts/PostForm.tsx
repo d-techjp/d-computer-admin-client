@@ -17,7 +17,7 @@ import {
 import { FormItemLayout } from "@/components/form/FormItemLayout";
 import routes from "@/config/routes";
 import { createPost, fetchPost, updatePost } from "@/lib/api/articles";
-import { categoryOptionsFrom, listCategories } from "@/lib/api/products";
+import { categoryOptionsFrom, listCategories } from "@/lib/api/catalog";
 import { uploadImage } from "@/lib/api/uploads";
 import type { SelectOption } from "@/types/common";
 import { POST_STATUS_LABEL, type Post, type PostStatus } from "@/types/post";

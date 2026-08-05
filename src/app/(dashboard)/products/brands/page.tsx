@@ -11,7 +11,7 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { TextField } from "@/components/form/fields";
 import { FormItemLayout } from "@/components/form/FormItemLayout";
 import { SearchFilterBar } from "@/components/form/SearchFilterBar";
-import { createBrand, deleteBrand, listBrands, updateBrand } from "@/lib/api/products";
+import { createBrand, deleteBrand, listBrands, updateBrand } from "@/lib/api/catalog";
 import { formatNumber } from "@/lib/utils";
 import { DEFAULT_PAGE_SIZE } from "@/types/common";
 import type { Brand } from "@/types/product";
