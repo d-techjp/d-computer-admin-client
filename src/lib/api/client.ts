@@ -6,13 +6,10 @@
  * nhờ vậy file này không phụ thuộc ngược vào store — tránh import vòng.
  */
 
-const RAW_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3030";
+const RAW_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3030/api/v1";
 
-/**
- * Chỉ giữ phần origin: path `/api/v1/...` đã nằm trong từng endpoint theo
- * contract, nên nếu env có sẵn hậu tố `/api/v1` thì cắt bỏ cho khỏi lặp.
- */
-export const API_BASE_URL = RAW_BASE_URL.replace(/\/+$/, "").replace(/\/api\/v\d+$/, "");
+/** Base URL đã bao gồm API prefix, ví dụ `http://localhost:3030/api/v1`. */
+export const API_BASE_URL = RAW_BASE_URL.replace(/\/+$/, "");
 
 /** Lỗi HTTP đã được bóc message từ body theo định dạng lỗi của NestJS */
 export class ApiError extends Error {

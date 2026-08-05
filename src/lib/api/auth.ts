@@ -13,12 +13,12 @@ import type {
 import { apiFetch } from "./client";
 
 export const AUTH_ENDPOINTS = {
-  login: "/api/v1/auth/login",
-  logout: "/api/v1/auth/logout",
-  logoutAll: "/api/v1/auth/logout-all",
-  profile: "/api/v1/auth/profile",
-  permissions: "/api/v1/auth/permissions",
-  changePassword: "/api/v1/auth/change-password",
+  login: "/auth/login",
+  logout: "/auth/logout",
+  logoutAll: "/auth/logout-all",
+  profile: "/auth/profile",
+  permissions: "/auth/permissions",
+  changePassword: "/auth/change-password",
 } as const;
 
 /** POST /api/v1/auth/login — mỗi lần login token cũ mất hiệu lực */

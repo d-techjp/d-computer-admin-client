@@ -92,7 +92,7 @@ export function toRoleOption(value: unknown): RoleOption {
 }
 
 export function listRoles(params: ApiListParams & { isSystem?: boolean }) {
-  return apiFetch<unknown>("/api/v1/roles", {
+  return apiFetch<unknown>("/roles", {
     query: { ...toListQuery(params), isSystem: params.isSystem },
   }).then((payload) =>
     parseListResponse(payload, toRole, {
@@ -103,42 +103,42 @@ export function listRoles(params: ApiListParams & { isSystem?: boolean }) {
 }
 
 export function fetchRole(id: string) {
-  return apiFetch<unknown>(`/api/v1/roles/${id}`).then(toRole);
+  return apiFetch<unknown>(`/roles/${id}`).then(toRole);
 }
 
 export function createRole(payload: Required<Pick<RolePayload, "code" | "name">> & RolePayload) {
-  return apiFetch<unknown>("/api/v1/roles", {
+  return apiFetch<unknown>("/roles", {
     method: "POST",
     body: compactPayload(payload),
   }).then(toRole);
 }
 
 export function updateRole(id: string, payload: RolePayload) {
-  return apiFetch<unknown>(`/api/v1/roles/${id}`, {
+  return apiFetch<unknown>(`/roles/${id}`, {
     method: "PATCH",
     body: compactPayload(payload),
   }).then(toRole);
 }
 
 export function deleteRole(id: string) {
-  return apiFetch<void>(`/api/v1/roles/${id}`, { method: "DELETE" });
+  return apiFetch<void>(`/roles/${id}`, { method: "DELETE" });
 }
 
 export function setRolePermissions(id: string, permissionCodes: Permission[]) {
-  return apiFetch<unknown>(`/api/v1/roles/${id}/permissions`, {
+  return apiFetch<unknown>(`/roles/${id}/permissions`, {
     method: "PUT",
     body: { permissionCodes },
   }).then(toRole);
 }
 
 export function fetchRoleOptions() {
-  return apiFetch<unknown[]>("/api/v1/roles/options").then((payload) =>
+  return apiFetch<unknown[]>("/roles/options").then((payload) =>
     (Array.isArray(payload) ? payload : []).map(toRoleOption),
   );
 }
 
 export function fetchPermissionGroups() {
-  return apiFetch<unknown[]>("/api/v1/permissions/options").then((payload) =>
+  return apiFetch<unknown[]>("/permissions/options").then((payload) =>
     (Array.isArray(payload) ? payload : []).map((item) => {
       const record = asRecord(item);
       const permissions = Array.isArray(record.permissions)

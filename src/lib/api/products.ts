@@ -175,7 +175,7 @@ export function listProducts(params: ListProductsParams) {
     isFeatured: params.isFeatured,
   };
 
-  return apiFetch<unknown>("/api/v1/products", { query }).then((payload) =>
+  return apiFetch<unknown>("/products", { query }).then((payload) =>
     parseListResponse(payload, toProduct, {
       page: params.page,
       pageSize: params.limit,
@@ -184,11 +184,11 @@ export function listProducts(params: ListProductsParams) {
 }
 
 export function deleteProduct(id: string) {
-  return apiFetch<void>(`/api/v1/products/${id}`, { method: "DELETE" });
+  return apiFetch<void>(`/products/${id}`, { method: "DELETE" });
 }
 
 export function fetchProduct(id: string) {
-  return apiFetch<unknown>(`/api/v1/products/${id}`).then(toProduct);
+  return apiFetch<unknown>(`/products/${id}`).then(toProduct);
 }
 
 function appendIfPresent(formData: FormData, key: string, value: unknown) {
@@ -237,21 +237,21 @@ export function createProductMultipart(
   payload: Required<Pick<ProductPayload, "name" | "sku" | "price">> & ProductPayload,
   images: ProductImageInput[],
 ) {
-  return apiFetch<unknown>("/api/v1/products", {
+  return apiFetch<unknown>("/products", {
     method: "POST",
     body: buildProductFormData(payload, images),
   }).then(toProduct);
 }
 
 export function updateProduct(id: string, payload: ProductPayload) {
-  return apiFetch<unknown>(`/api/v1/products/${id}`, {
+  return apiFetch<unknown>(`/products/${id}`, {
     method: "PATCH",
     body: compactPayload(payload),
   }).then(toProduct);
 }
 
 export function updateProductMultipart(id: string, payload: ProductPayload, images: ProductImageInput[]) {
-  return apiFetch<unknown>(`/api/v1/products/${id}`, {
+  return apiFetch<unknown>(`/products/${id}`, {
     method: "PATCH",
     body: buildProductFormData(payload, images),
   }).then(toProduct);
@@ -263,7 +263,7 @@ export function listCategories(
     limit: 100,
   },
 ) {
-  return apiFetch<unknown>("/api/v1/categories", {
+  return apiFetch<unknown>("/categories", {
     query: {
       ...toListQuery(params),
       parentId: params.parentId,
@@ -279,25 +279,25 @@ export function listCategories(
 }
 
 export function createCategory(payload: Required<Pick<CategoryPayload, "name">> & CategoryPayload) {
-  return apiFetch<unknown>("/api/v1/categories", {
+  return apiFetch<unknown>("/categories", {
     method: "POST",
     body: compactPayload(payload),
   }).then(toCategory);
 }
 
 export function updateCategory(id: string, payload: CategoryPayload) {
-  return apiFetch<unknown>(`/api/v1/categories/${id}`, {
+  return apiFetch<unknown>(`/categories/${id}`, {
     method: "PATCH",
     body: compactPayload(payload),
   }).then(toCategory);
 }
 
 export function deleteCategory(id: string) {
-  return apiFetch<void>(`/api/v1/categories/${id}`, { method: "DELETE" });
+  return apiFetch<void>(`/categories/${id}`, { method: "DELETE" });
 }
 
 export function listBrands(params: ApiListParams & { isActive?: boolean } = { page: 1, limit: 100 }) {
-  return apiFetch<unknown>("/api/v1/brands", {
+  return apiFetch<unknown>("/brands", {
     query: { ...toListQuery(params), isActive: params.isActive },
   }).then((payload) =>
     parseListResponse(payload, toBrand, {
@@ -308,21 +308,21 @@ export function listBrands(params: ApiListParams & { isActive?: boolean } = { pa
 }
 
 export function createBrand(payload: Required<Pick<BrandPayload, "name">> & BrandPayload) {
-  return apiFetch<unknown>("/api/v1/brands", {
+  return apiFetch<unknown>("/brands", {
     method: "POST",
     body: compactPayload(payload),
   }).then(toBrand);
 }
 
 export function updateBrand(id: string, payload: BrandPayload) {
-  return apiFetch<unknown>(`/api/v1/brands/${id}`, {
+  return apiFetch<unknown>(`/brands/${id}`, {
     method: "PATCH",
     body: compactPayload(payload),
   }).then(toBrand);
 }
 
 export function deleteBrand(id: string) {
-  return apiFetch<void>(`/api/v1/brands/${id}`, { method: "DELETE" });
+  return apiFetch<void>(`/brands/${id}`, { method: "DELETE" });
 }
 
 export function categoryOptionsFrom(categories: Category[]): SelectOption[] {

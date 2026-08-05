@@ -122,7 +122,7 @@ export function toCustomer(user: UserRecord): Customer {
 }
 
 export function listUsers(params: ListUsersParams) {
-  return apiFetch<unknown>("/api/v1/users", {
+  return apiFetch<unknown>("/users", {
     query: {
       ...toListQuery(params),
       roleCode: params.roleCode,
@@ -155,29 +155,29 @@ export function listCustomers(params: Omit<ListUsersParams, "roleCode">) {
 }
 
 export function fetchUser(id: string) {
-  return apiFetch<unknown>(`/api/v1/users/${id}`).then(toUserRecord);
+  return apiFetch<unknown>(`/users/${id}`).then(toUserRecord);
 }
 
 export function createUser(payload: CreateUserPayload) {
-  return apiFetch<unknown>("/api/v1/users", {
+  return apiFetch<unknown>("/users", {
     method: "POST",
     body: compactPayload(payload),
   }).then(toUserRecord);
 }
 
 export function updateUser(id: string, payload: UpdateUserPayload) {
-  return apiFetch<unknown>(`/api/v1/users/${id}`, {
+  return apiFetch<unknown>(`/users/${id}`, {
     method: "PATCH",
     body: compactPayload(payload),
   }).then(toUserRecord);
 }
 
 export function deleteUser(id: string) {
-  return apiFetch<void>(`/api/v1/users/${id}`, { method: "DELETE" });
+  return apiFetch<void>(`/users/${id}`, { method: "DELETE" });
 }
 
 export function assignUserRole(id: string, roleCode: string) {
-  return apiFetch<unknown>(`/api/v1/users/${id}/role`, {
+  return apiFetch<unknown>(`/users/${id}/role`, {
     method: "PUT",
     body: { roleCode },
   }).then(toUserRecord);
