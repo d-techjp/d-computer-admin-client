@@ -315,7 +315,6 @@ export function RichTextField<T extends FieldValues>({
     if (next !== editor.getHTML()) {
       editor.commands.setContent(next, { emitUpdate: false });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, field.value]);
 
   /**

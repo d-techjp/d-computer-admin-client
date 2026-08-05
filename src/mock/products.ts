@@ -196,7 +196,8 @@ function generateProducts(count: number): Product[] {
         (_, imageIndex) =>
           `/products/sample-${((index + imageIndex) % 6) + 1}.svg`,
       ),
-      description: `${brand.name} ${model} chính hãng, bảo hành ${faker.number.int({ min: 12, max: 36 })} tháng.`,
+      isFeatured: index % 5 === 0,
+      shortDescription: `${brand.name} ${model} chính hãng, bảo hành ${faker.number.int({ min: 12, max: 36 })} tháng.`,
       createdAt: faker.date
         .between({ from: "2025-06-01", to: "2026-07-31" })
         .toISOString(),

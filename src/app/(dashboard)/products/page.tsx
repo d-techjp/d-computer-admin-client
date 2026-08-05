@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { App, Button, Input, InputNumber, Popconfirm, Select, Space, Tooltip } from "antd";
+import { App, Button, Input, Popconfirm, Select, Space, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { ImageOff, Pencil, Plus, Trash2 } from "lucide-react";
 
@@ -11,6 +11,11 @@ import { DataTable } from "@/components/common/DataTable";
 import { PageHeader } from "@/components/common/PageHeader";
 import { ProductStatusTag } from "@/components/common/StatusTag";
 import { FormItemLayout } from "@/components/form/FormItemLayout";
+import {
+  DEFAULT_PRICE_RANGE,
+  PriceRangePresetFilter,
+  type PriceRangeSearchValue,
+} from "@/components/form/PriceRangePresetFilter";
 import { SearchFilterBar } from "@/components/form/SearchFilterBar";
 import routes from "@/config/routes";
 import {
@@ -21,12 +26,7 @@ import {
   listCategories,
   listProducts,
 } from "@/lib/api/products";
-import {
-  currencyInputFormatter,
-  currencyInputParser,
-  formatCurrency,
-  formatNumber,
-} from "@/lib/utils";
+import { formatCurrency, formatNumber } from "@/lib/utils";
 import { DEFAULT_PAGE_SIZE, type SelectOption } from "@/types/common";
 import { PRODUCT_STATUS_LABEL, type Product, type ProductStatus } from "@/types/product";
 
@@ -35,9 +35,10 @@ interface ProductFilters {
   categoryId?: string;
   brandId?: string;
   status?: ProductStatus;
-  minPrice?: number;
-  maxPrice?: number;
+  priceRange: PriceRangeSearchValue;
 }
+
+const DEFAULT_FILTERS: ProductFilters = { keyword: "", priceRange: DEFAULT_PRICE_RANGE };
 
 const STATUS_OPTIONS = Object.entries(PRODUCT_STATUS_LABEL).map(([value, label]) => ({
   label,
@@ -49,8 +50,8 @@ export default function ProductsPage() {
   const [rows, setRows] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState<ProductFilters>({ keyword: "" });
-  const [appliedFilters, setAppliedFilters] = useState<ProductFilters>({ keyword: "" });
+  const [filters, setFilters] = useState<ProductFilters>(DEFAULT_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState<ProductFilters>(DEFAULT_FILTERS);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([]);
@@ -67,8 +68,8 @@ export default function ProductsPage() {
         includeSubCategories: !!appliedFilters.categoryId,
         brandId: appliedFilters.brandId,
         status: appliedFilters.status,
-        minPrice: appliedFilters.minPrice,
-        maxPrice: appliedFilters.maxPrice,
+        minPrice: appliedFilters.priceRange.min,
+        maxPrice: appliedFilters.priceRange.max,
         sortBy: "createdAt",
         sortOrder: "DESC",
       });
@@ -110,10 +111,9 @@ export default function ProductsPage() {
   };
 
   const reset = () => {
-    const next = { keyword: "" };
     setPage(1);
-    setFilters(next);
-    setAppliedFilters(next);
+    setFilters(DEFAULT_FILTERS);
+    setAppliedFilters(DEFAULT_FILTERS);
   };
 
   const handleDelete = async (record: Product) => {
@@ -281,30 +281,11 @@ export default function ProductsPage() {
           />
         </FormItemLayout>
 
-        <FormItemLayout label="Khoảng giá (JPY)" className="sm:col-span-2">
-          <Space.Compact className="w-full">
-            <InputNumber
-              placeholder="Giá từ"
-              className="w-1/2"
-              min={0}
-              step={10_000}
-              formatter={currencyInputFormatter}
-              parser={currencyInputParser}
-              value={filters.minPrice}
-              onChange={(minPrice) => patchFilters({ minPrice: minPrice ?? undefined })}
-            />
-            <InputNumber
-              placeholder="Giá đến"
-              className="w-1/2"
-              min={0}
-              step={10_000}
-              formatter={currencyInputFormatter}
-              parser={currencyInputParser}
-              value={filters.maxPrice}
-              onChange={(maxPrice) => patchFilters({ maxPrice: maxPrice ?? undefined })}
-            />
-          </Space.Compact>
-        </FormItemLayout>
+        <PriceRangePresetFilter
+          value={filters.priceRange}
+          onChange={(priceRange) => patchFilters({ priceRange })}
+          className="sm:col-span-2"
+        />
       </SearchFilterBar>
 
       <DataTable<Product>

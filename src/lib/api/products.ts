@@ -85,6 +85,18 @@ function asNumber(value: unknown, fallback = 0) {
   return fallback;
 }
 
+function asOptionalNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) {
+    return Number(value);
+  }
+  return undefined;
+}
+
+function asBoolean(value: unknown, fallback = false) {
+  return typeof value === "boolean" ? value : fallback;
+}
+
 function toSpecs(value: unknown): ProductSpec[] {
   if (Array.isArray(value)) {
     return value
@@ -124,12 +136,16 @@ export function toProduct(value: unknown): Product {
     categoryId: asString(record.categoryId ?? category.id),
     categoryName: asString(record.categoryName ?? category.name),
     price: asNumber(record.price),
+    compareAtPrice: asOptionalNumber(record.compareAtPrice),
     cost: asNumber(record.cost ?? record.costPrice),
     stock: asNumber(record.stock),
+    lowStockThreshold: asOptionalNumber(record.lowStockThreshold),
+    isFeatured: asBoolean(record.isFeatured),
     status: asString(record.status, "draft") as ProductStatus,
     specs: toSpecs(record.specifications ?? record.specs),
     images: toImages(record),
-    description: asString(record.description ?? record.shortDescription),
+    shortDescription: asString(record.shortDescription),
+    description: asString(record.description) || undefined,
     createdAt: asString(record.createdAt ?? record.created_at, new Date(0).toISOString()),
   };
 }
@@ -189,6 +205,32 @@ export function deleteProduct(id: string) {
 
 export function fetchProduct(id: string) {
   return apiFetch<unknown>(`/products/${id}`).then(toProduct);
+}
+
+function toDescriptionContent(value: unknown): string {
+  if (typeof value === "string") return value;
+  const record = asRecord(value);
+  return asString(record.description ?? record.content);
+}
+
+/**
+ * GET /products/{id}/description — gọi riêng khi người dùng bấm sửa mô tả
+ * chi tiết, tránh tải/dựng sẵn trình soạn thảo rich text (nặng) ngay từ lúc
+ * mở trang chỉnh sửa sản phẩm.
+ */
+export function fetchProductDescription(id: string) {
+  return apiFetch<unknown>(`/products/${id}/description`).then(toDescriptionContent);
+}
+
+/**
+ * PUT /products/{id}/description — lưu mô tả chi tiết độc lập với API cập
+ * nhật sản phẩm (`updateProduct`), khớp `UpdateProductDescriptionDto`.
+ */
+export function updateProductDescription(id: string, content: string) {
+  return apiFetch<unknown>(`/products/${id}/description`, {
+    method: "PUT",
+    body: { content },
+  }).then(toDescriptionContent);
 }
 
 function appendIfPresent(formData: FormData, key: string, value: unknown) {

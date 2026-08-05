@@ -20,13 +20,24 @@ export interface Product {
   categoryName: string;
   /** Giá niêm yết bằng yên Nhật (JPY, không có phần thập phân) */
   price: number;
+  /** Giá gạch ngang hiển thị cạnh giá bán để tạo cảm giác giảm giá */
+  compareAtPrice?: number;
   cost: number;
   stock: number;
+  /** Cảnh báo tồn thấp khi `stock` chạm mốc này */
+  lowStockThreshold?: number;
+  /** Hiển thị ở khu vực sản phẩm nổi bật trên trang chủ */
+  isFeatured: boolean;
   status: ProductStatus;
   specs: ProductSpec[];
   /** Ảnh sản phẩm; phần tử đầu tiên là ảnh đại diện */
   images: string[];
-  description: string;
+  shortDescription: string;
+  /**
+   * Mô tả chi tiết dạng HTML — không tải kèm trong danh sách/form ban đầu,
+   * chỉ lấy về qua `fetchProductDescription` khi người dùng bấm sửa.
+   */
+  description?: string;
   createdAt: string;
 }
 
