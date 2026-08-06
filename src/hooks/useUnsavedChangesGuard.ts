@@ -3,14 +3,19 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
+import { useConfirmDialog } from "@/components/common/ConfirmDialog";
+
 const DEFAULT_MESSAGE = "Bạn có thay đổi chưa lưu. Rời khỏi trang mà không lưu?";
 
 /**
  * Cảnh báo khi rời trang lúc còn thay đổi chưa lưu:
  * - `beforeunload`: chặn refresh, đóng tab, gõ URL khác, mở link ngoài app.
+ *   Bắt buộc dùng dialog gốc của trình duyệt — đây là giới hạn bảo mật của
+ *   mọi trình duyệt hiện đại, không có cách hiện UI tuỳ biến ở sự kiện này.
  * - click bắt ở capture phase trên toàn `document`: chặn điều hướng trong app
- *   (menu sidebar, breadcrumb...) trước khi Next xử lý click của `<Link>`,
- *   rồi tự `router.push` nếu người dùng xác nhận rời đi.
+ *   (menu sidebar...) trước khi Next xử lý click của `<Link>`, hiện hộp thoại
+ *   xác nhận dùng chung (`useConfirmDialog`) rồi tự `router.push` nếu người
+ *   dùng xác nhận rời đi.
  *
  * Không can thiệp nút back/forward của trình duyệt — tự đẩy pushState/popstate
  * để chặn dễ xung đột với cơ chế điều hướng riêng của App Router, nên bỏ qua
@@ -18,6 +23,7 @@ const DEFAULT_MESSAGE = "Bạn có thay đổi chưa lưu. Rời khỏi trang m�
  */
 export function useUnsavedChangesGuard(isDirty: boolean, message = DEFAULT_MESSAGE) {
   const router = useRouter();
+  const confirmDialog = useConfirmDialog();
   const dirtyRef = useRef(isDirty);
 
   useEffect(() => {
@@ -66,10 +72,17 @@ export function useUnsavedChangesGuard(isDirty: boolean, message = DEFAULT_MESSA
       event.preventDefault();
       event.stopPropagation();
 
-      if (window.confirm(message)) {
+      void confirmDialog({
+        title: "Rời khỏi trang?",
+        description: message,
+        okText: "Rời khỏi trang",
+        cancelText: "Ở lại",
+        danger: true,
+      }).then((confirmed) => {
+        if (!confirmed) return;
         dirtyRef.current = false;
         router.push(`${url.pathname}${url.search}${url.hash}`);
-      }
+      });
     }
 
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -79,7 +92,7 @@ export function useUnsavedChangesGuard(isDirty: boolean, message = DEFAULT_MESSA
       window.removeEventListener("beforeunload", handleBeforeUnload);
       document.removeEventListener("click", handleClick, true);
     };
-  }, [message, router]);
+  }, [confirmDialog, message, router]);
 }
 
 export default useUnsavedChangesGuard;

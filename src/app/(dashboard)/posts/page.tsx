@@ -14,7 +14,7 @@ import { FormItemLayout } from "@/components/form/FormItemLayout";
 import { SearchFilterBar } from "@/components/form/SearchFilterBar";
 import routes from "@/config/routes";
 import { deletePost, listPosts, publishPost, unpublishPost } from "@/lib/api/articles";
-import { categoryOptionsFrom, listCategories } from "@/lib/api/products";
+import { categoryOptionsFrom, listCategories } from "@/lib/api/catalog";
 import { formatNumber } from "@/lib/utils";
 import { DEFAULT_PAGE_SIZE, type SelectOption } from "@/types/common";
 import { POST_STATUS_LABEL, type Post, type PostStatus } from "@/types/post";

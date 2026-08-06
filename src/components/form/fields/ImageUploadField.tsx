@@ -7,6 +7,13 @@ import { ImagePlus, Star, Trash2, Upload } from "lucide-react";
 import type { FieldValues } from "react-hook-form";
 import { useController } from "react-hook-form";
 
+import {
+  ACCEPTED_IMAGE_TYPES,
+  isAcceptedImageType,
+  isWithinImageSizeLimit,
+  MAX_IMAGE_SIZE_MB,
+  readAsDataUrl,
+} from "@/lib/imageUpload";
 import { cn } from "@/lib/utils";
 
 import { FormItemLayout } from "../FormItemLayout";
@@ -19,18 +26,6 @@ export interface UploadedImage {
   url: string;
   size: number;
   file?: File;
-}
-
-const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/avif", "image/gif"];
-const MAX_SIZE_MB = 5;
-
-function readAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 }
 
 interface ImageUploadFieldProps<T extends FieldValues> extends BaseFieldProps<T> {
@@ -79,12 +74,12 @@ export function ImageUploadField<T extends FieldValues>({
       const accepted: UploadedImage[] = [];
 
       for (const file of Array.from(fileList).slice(0, room)) {
-        if (!ACCEPTED.includes(file.type)) {
+        if (!isAcceptedImageType(file)) {
           message.error(`${file.name}: chỉ nhận ảnh JPG, PNG, WEBP, AVIF hoặc GIF`);
           continue;
         }
-        if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-          message.error(`${file.name}: ảnh vượt quá ${MAX_SIZE_MB}MB`);
+        if (!isWithinImageSizeLimit(file)) {
+          message.error(`${file.name}: ảnh vượt quá ${MAX_IMAGE_SIZE_MB}MB`);
           continue;
         }
         accepted.push({
@@ -132,7 +127,7 @@ export function ImageUploadField<T extends FieldValues>({
       error={fieldState.error?.message}
       helpText={
         helpText ??
-        `Tối đa ${maxCount} ảnh, mỗi ảnh dưới ${MAX_SIZE_MB}MB. Kéo ảnh để đổi thứ tự, bấm ngôi sao để chọn ảnh đại diện.`
+        `Tối đa ${maxCount} ảnh, mỗi ảnh dưới ${MAX_IMAGE_SIZE_MB}MB. Kéo ảnh để đổi thứ tự, bấm ngôi sao để chọn ảnh đại diện.`
       }
       className={className}
     >
@@ -263,7 +258,7 @@ export function ImageUploadField<T extends FieldValues>({
         <input
           ref={inputRef}
           type="file"
-          accept={ACCEPTED.join(",")}
+          accept={ACCEPTED_IMAGE_TYPES.join(",")}
           multiple={maxCount > 1}
           hidden
           onChange={(event) => {
