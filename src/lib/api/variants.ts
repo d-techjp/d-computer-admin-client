@@ -212,6 +212,25 @@ export function deleteVariant(id: string) {
   return apiFetch<void>(`/variants/${id}`, { method: "DELETE" });
 }
 
+/** Một dòng trong payload sửa hàng loạt — field không gửi thì giữ nguyên */
+export interface BulkVariantUpdateItem extends VariantPayload {
+  id: string;
+}
+
+/**
+ * `PATCH /products/{id}/variants` — sửa hàng loạt biến thể cùng sản phẩm
+ * trong **một transaction** (giá/kho/`position`/cờ mặc định…), dùng cho bảng
+ * biến thể thay vì gọi `PATCH /variants/:id` từng dòng. Không nhận file ảnh —
+ * ảnh riêng vẫn qua `updateVariant`. Trả về **toàn bộ** biến thể của sản
+ * phẩm sau khi sửa, giống `generateVariants`, nên tin thẳng response được.
+ */
+export function bulkUpdateVariants(productId: string, items: BulkVariantUpdateItem[]) {
+  return apiFetch<unknown>(`/products/${productId}/variants`, {
+    method: "PATCH",
+    body: { variants: items },
+  }).then((payload) => asArray(payload).map(toVariant));
+}
+
 /**
  * `POST /products/{id}/variants/generate` — sinh biến thể cho mọi tổ hợp
  * option chưa có. Idempotent: tổ hợp đã tồn tại được bỏ qua, và response trả

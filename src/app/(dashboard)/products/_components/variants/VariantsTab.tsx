@@ -2,12 +2,29 @@
 
 import { useMemo, useState } from "react";
 import Image from "next/image";
-import { App, Alert, Button, Input, InputNumber, Popconfirm, Radio, Switch, Tag, Tooltip } from "antd";
+import {
+  App,
+  Alert,
+  Button,
+  Input,
+  InputNumber,
+  Popconfirm,
+  Radio,
+  Skeleton,
+  Switch,
+  Tag,
+  Tooltip,
+} from "antd";
 import { Camera, GripVertical, ImageOff, Plus, RotateCcw, Trash2, Warehouse } from "lucide-react";
 
 import { PermissionGate } from "@/components/auth/PermissionGate";
 import { usePermissions } from "@/hooks/usePermissions";
-import { deleteVariant, updateVariant, type VariantPayload } from "@/lib/api/variants";
+import {
+  bulkUpdateVariants,
+  deleteVariant,
+  type BulkVariantUpdateItem,
+  type VariantPayload,
+} from "@/lib/api/variants";
 import { cn, formatCurrency, formatNumber } from "@/lib/utils";
 import type { Product } from "@/types/product";
 import { isLowStock, optionLabelOf, type ProductVariant } from "@/types/variant";
@@ -73,7 +90,13 @@ interface VariantsTabProps {
 }
 
 /**
- * Bảng biến thể — mỗi dòng lưu riêng bằng `PATCH /variants/{id}`.
+ * Bảng biến thể — sửa hàng loạt qua `PATCH /products/{id}/variants` (mục 4.2
+ * của product-creation-flows-3.md), một request/transaction. Ảnh riêng của
+ * biến thể vẫn đi qua `PATCH /variants/{id}` (multipart) — bulk không nhận file.
+ *
+ * Kéo-thả đổi vị trí **không** gọi API ngay — nó chỉ là một thay đổi cục bộ
+ * như mọi ô nhập khác trên bảng, tích luỹ tới khi người dùng bấm "Lưu N thay
+ * đổi" mới gộp chung 1 request bulk (xem `reorderVariant`/`dirtyIds`).
  *
  * Tồn kho cố tình **không sửa trực tiếp** ở đây: nó đi qua modal điều chỉnh
  * (`PATCH /variants/{id}/stock`) để có `delta` + lý do vào nhật ký, và vì thao
@@ -91,6 +114,7 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
   const [imagesVariant, setImagesVariant] = useState<ProductVariant>();
   const [addOpen, setAddOpen] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   const canManage = has("product.manage");
   const isService = product.productType === "service";
@@ -111,6 +135,12 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
 
   const applyVariants = (next: ProductVariant[]) => {
     setVariants(next);
+    // `onVariantsChange` khiến tab cha bọc `next` vào một `product` mới rồi
+    // trả ngược xuống qua prop — cùng tham chiếu mảng, không phải reload
+    // thật. Đánh dấu luôn `syncedVariants` ở đây để nhánh resync phía trên
+    // không hiểu nhầm là cha vừa nạp lại sản phẩm rồi xoá mất `drafts` đang
+    // sửa dở của các dòng khác (bug: gõ giá xong kéo-thả là mất giá vừa gõ).
+    setSyncedVariants(next);
     onVariantsChange(next);
   };
 
@@ -120,22 +150,52 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
     setDrafts((current) => ({ ...current, [updated.id]: toDraft(updated) }));
   };
 
+  /**
+   * Áp kết quả `bulkUpdateVariants` — response là TOÀN BỘ biến thể của sản
+   * phẩm (mục 4.2) nên thay thẳng `variants`, không cần merge tay như trước.
+   * `drafts` chỉ đồng bộ cho những dòng vừa gửi trong request, để không đè
+   * mất nội dung đang gõ dở ở các dòng khác chưa lưu.
+   */
+  const applyBulkVariants = (updated: ProductVariant[], syncDraftIds: string[] = []) => {
+    applyVariants(updated);
+    if (syncDraftIds.length === 0) return;
+    const byId = new Map(updated.map((item) => [item.id, item]));
+    setDrafts((current) => {
+      const next = { ...current };
+      for (const id of syncDraftIds) {
+        const item = byId.get(id);
+        if (item) next[id] = toDraft(item);
+      }
+      return next;
+    });
+  };
+
   const patchDraft = (id: string, patch: Partial<VariantDraft>) => {
     setDrafts((current) => ({ ...current, [id]: { ...current[id], ...patch } }));
   };
 
-  const dirtyIds = useMemo(
-    () =>
-      variants
-        .filter((variant) => {
-          const draft = drafts[variant.id];
-          return draft && isDirty(diffDraft(variant, draft));
-        })
-        .map((variant) => variant.id),
-    [drafts, variants],
-  );
+  /**
+   * "Dơ" gồm cả field sửa tay (`drafts`) lẫn vị trí đổi do kéo-thả — kéo-thả
+   * không gọi API ngay (xem `reorderVariant`), chỉ so `index` hiện tại với
+   * `variant.position` đã lưu để biết dòng nào đang có thứ tự chưa lưu.
+   */
+  const dirtyIds = useMemo(() => {
+    const ids: string[] = [];
+    variants.forEach((variant, index) => {
+      const draft = drafts[variant.id];
+      const fieldsDirty = Boolean(draft && isDirty(diffDraft(variant, draft)));
+      const positionDirty = variant.position !== index;
+      if (fieldsDirty || positionDirty) ids.push(variant.id);
+    });
+    return ids;
+  }, [drafts, variants]);
 
-  /** Lưu một dòng; trả về `true` khi thành công để "Lưu tất cả" đếm được */
+  /**
+   * Lưu một dòng (nút "Lưu" trên hàng); trả về `true` khi thành công. Chỉ
+   * gửi field sửa tay — **không** kèm `position`: kéo-thả thường dịch chuyển
+   * nhiều dòng cùng lúc, lưu lẻ một dòng sẽ làm lệch vị trí các dòng còn lại,
+   * nên đổi vị trí luôn phải đi qua "Lưu N thay đổi" (`saveAll`).
+   */
   const saveVariant = async (variant: ProductVariant, silent = false) => {
     const draft = drafts[variant.id];
     if (!draft) return true;
@@ -145,15 +205,11 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
 
     setSavingIds((current) => [...current, variant.id]);
     try {
-      await updateVariant(variant.id, payload);
-      // Không dùng response PATCH để ghi đè cả dòng: OpenAPI không khai
-      // response schema cho endpoint này, và trên thực tế `costPrice` không
-      // bao giờ xuất hiện trong bất kỳ response nào của backend (đã kiểm tra
-      // trực tiếp) — tin response có thể vô tình xoá trắng những trường không
-      // liên quan tới lần lưu này. `payload` là đúng những gì vừa gửi và đã
-      // được backend chấp nhận (không lỗi), nên merge thẳng lên variant hiện
-      // có là đủ và an toàn hơn nhiều.
-      replaceVariant({ ...variant, ...payload });
+      const updated = await bulkUpdateVariants(product.id, [{ id: variant.id, ...payload }]);
+      const fresh = updated.find((item) => item.id === variant.id) ?? { ...variant, ...payload };
+      // Giữ nguyên thứ tự mảng hiện tại (có thể đang có kéo-thả chưa lưu ở
+      // dòng khác) — chỉ thay dữ liệu của đúng dòng vừa lưu.
+      replaceVariant(fresh);
       setFailedIds((current) => current.filter((id) => id !== variant.id));
       if (!silent) message.success(`Đã lưu ${draft.sku}`);
       return true;
@@ -169,41 +225,53 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
   };
 
   /**
-   * Lưu tuần tự để lỗi của một dòng không kéo đổ cả bảng: dòng lỗi được giữ
-   * nguyên giá trị người dùng vừa nhập và tô đỏ, các dòng còn lại vẫn lưu xong.
+   * Lưu mọi thay đổi đang chờ trong **một** request (mục 4.2): field sửa tay
+   * lẫn `position` do kéo-thả — kéo-thả tự nó không gọi API, chỉ tích luỹ
+   * thành "dơ" tới khi bấm nút này. 1 transaction: thành hoặc bại cả loạt.
    */
   const saveAll = async () => {
-    setSavingAll(true);
-    let failed = 0;
-    for (const id of dirtyIds) {
-      const variant = variants.find((item) => item.id === id);
-      if (!variant) continue;
-      const ok = await saveVariant(variant, true);
-      if (!ok) failed += 1;
-    }
-    setSavingAll(false);
+    const items: BulkVariantUpdateItem[] = [];
+    variants.forEach((variant, index) => {
+      const draft = drafts[variant.id];
+      const payload: VariantPayload = draft ? diffDraft(variant, draft) : {};
+      if (variant.position !== index) payload.position = index;
+      if (isDirty(payload)) items.push({ id: variant.id, ...payload });
+    });
+    if (items.length === 0) return;
 
-    if (failed === 0) message.success(`Đã lưu ${dirtyIds.length} phiên bản`);
-    else message.error(`${failed}/${dirtyIds.length} phiên bản chưa lưu được, xem các dòng tô đỏ`);
+    const itemIds = items.map((item) => item.id);
+    setSavingAll(true);
+    setSavingIds((current) => [...current, ...itemIds]);
+    try {
+      const updated = await bulkUpdateVariants(product.id, items);
+      // Toàn bộ "dơ" (field + vị trí) được gửi trong 1 request nên response
+      // giờ chính là trạng thái đã cam kết — thay thẳng cả mảng an toàn.
+      applyBulkVariants(updated, itemIds);
+      setFailedIds((current) => current.filter((id) => !itemIds.includes(id)));
+      message.success(`Đã lưu ${items.length} phiên bản`);
+    } catch (error) {
+      setFailedIds((current) => [...new Set([...current, ...itemIds])]);
+      message.error(error instanceof Error ? error.message : "Không lưu được các thay đổi, thử lại");
+    } finally {
+      setSavingAll(false);
+      setSavingIds((current) => current.filter((id) => !itemIds.includes(id)));
+    }
   };
 
   /** Bật/tắt và đặt mặc định lưu ngay — không có gì để "soạn dở" ở hai công tắc này */
   const toggleField = async (variant: ProductVariant, patch: VariantPayload) => {
     setSavingIds((current) => [...current, variant.id]);
     try {
-      await updateVariant(variant.id, patch);
-      // Merge trực tiếp thay vì tin response PATCH — cùng lý do như saveVariant.
-      const merged = { ...variant, ...patch };
-      // Đặt mặc định là thao tác độc quyền — dòng khác phải tự bỏ cờ
+      const updated = await bulkUpdateVariants(product.id, [{ id: variant.id, ...patch }]);
+      const fresh = updated.find((item) => item.id === variant.id) ?? { ...variant, ...patch };
+      // Giữ nguyên thứ tự mảng hiện tại (không thay toàn bộ bằng response) để
+      // không mất kéo-thả chưa lưu của các dòng khác. Đặt mặc định là thao
+      // tác độc quyền nên vẫn phải tự bỏ cờ dòng khác cục bộ.
       const next = variants.map((item) =>
-        item.id === merged.id
-          ? merged
-          : patch.isDefault
-            ? { ...item, isDefault: false }
-            : item,
+        item.id === fresh.id ? fresh : patch.isDefault ? { ...item, isDefault: false } : item,
       );
       applyVariants(next);
-      setDrafts((current) => ({ ...current, [merged.id]: toDraft(merged) }));
+      setDrafts((current) => ({ ...current, [fresh.id]: toDraft(fresh) }));
     } catch (error) {
       message.error(error instanceof Error ? error.message : "Không cập nhật được biến thể");
     } finally {
@@ -212,52 +280,18 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
   };
 
   /**
-   * Kéo-thả đổi thứ tự hiển thị — lưu ngay qua `position` của
-   * `PATCH /variants/{id}`, không có gì để "soạn dở" giống hai công tắc
-   * isDefault/isActive ở trên.
-   *
-   * Chỉ những dòng thật sự đổi vị trí (so với `position` đang lưu) mới bị gọi
-   * API — kéo một dòng chỉ 1 bậc thường chỉ động tới 2 dòng, không phải toàn
-   * bộ danh sách.
+   * Kéo-thả chỉ đổi thứ tự **cục bộ** — không gọi API. Giống mọi field sửa
+   * tay khác trên bảng: tích luỹ thành "dơ" (xem `dirtyIds`) tới khi bấm
+   * "Lưu N thay đổi" (`saveAll`) mới thật sự gửi lên backend, gộp chung 1
+   * request bulk với mọi thay đổi khác đang có.
    */
-  const reorderVariant = async (fromIndex: number, toIndex: number) => {
+  const reorderVariant = (fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) return;
 
     const reordered = [...variants];
     const [moved] = reordered.splice(fromIndex, 1);
     reordered.splice(toIndex, 0, moved);
-    // Đổi thứ tự hiển thị ngay, không đợi lưu xong mới thấy — lưu chạy nền phía sau
     applyVariants(reordered);
-
-    const changes = reordered
-      .map((item, index) => ({ item, index }))
-      .filter(({ item, index }) => item.position !== index);
-    if (changes.length === 0) return;
-
-    setSavingIds((current) => [...current, ...changes.map(({ item }) => item.id)]);
-    const results = await Promise.allSettled(
-      changes.map(({ item, index }) => updateVariant(item.id, { position: index })),
-    );
-    const failed = changes
-      .filter((_, index) => results[index].status === "rejected")
-      .map(({ item }) => item.id);
-
-    // Cập nhật lại `position` cục bộ cho dòng lưu thành công để lần kéo sau
-    // tính đúng baseline; dòng lỗi giữ nguyên position cũ, cần kéo lại.
-    applyVariants(
-      reordered.map((item, index) => {
-        const changed = changes.some((change) => change.item.id === item.id);
-        return changed && !failed.includes(item.id) ? { ...item, position: index } : item;
-      }),
-    );
-    setSavingIds((current) =>
-      current.filter((id) => !changes.some((change) => change.item.id === id)),
-    );
-
-    if (failed.length > 0) {
-      setFailedIds((current) => [...new Set([...current, ...failed])]);
-      message.error(`${failed.length} phiên bản chưa lưu được vị trí mới, thử kéo lại`);
-    }
   };
 
   const handleDelete = async (variant: ProductVariant) => {
@@ -306,9 +340,13 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
                 <Button
                   icon={<RotateCcw size={16} />}
                   disabled={savingAll}
-                  onClick={() =>
-                    setDrafts(Object.fromEntries(variants.map((item) => [item.id, toDraft(item)])))
-                  }
+                  onClick={() => {
+                    setDrafts(Object.fromEntries(variants.map((item) => [item.id, toDraft(item)])));
+                    // Huỷ luôn kéo-thả chưa lưu — trả mảng về đúng thứ tự đã
+                    // cam kết (`position` hiện có, chưa bị đổi vì chưa lưu).
+                    applyVariants([...variants].sort((a, b) => a.position - b.position));
+                    setFailedIds([]);
+                  }}
                 >
                   Huỷ thay đổi
                 </Button>
@@ -349,10 +387,14 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
               const saving = savingIds.includes(variant.id);
               const failed = failedIds.includes(variant.id);
               const rowDirty = isDirty(diffDraft(variant, draft));
+              const positionDirty = variant.position !== index;
               const derivedBundle = variant.bundleInventoryPolicy === "derived_from_components";
               const thumbnail = variant.thumbnail ?? product.thumbnail ?? product.images[0];
               const options = optionLabelOf(variant);
               const canReorder = canManage && variants.length > 1;
+              const isDragging = dragIndex === index;
+              const isDropTarget =
+                dragIndex !== null && dragIndex !== index && dragOverIndex === index;
 
               return (
                 <div
@@ -360,26 +402,48 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
                   onDragOver={(event) => {
                     if (dragIndex === null) return;
                     event.preventDefault();
+                    if (dragOverIndex !== index) setDragOverIndex(index);
                   }}
                   onDrop={(event) => {
                     event.preventDefault();
                     if (dragIndex !== null && dragIndex !== index) {
-                      void reorderVariant(dragIndex, index);
+                      reorderVariant(dragIndex, index);
                     }
                     setDragIndex(null);
+                    setDragOverIndex(null);
                   }}
                   className={cn(
                     ROW_GRID,
-                    "rounded-md px-1 py-1 transition",
-                    rowDirty && "bg-brand/5",
+                    "relative rounded-md px-1 py-1 transition",
+                    (rowDirty || positionDirty) && "bg-brand/5",
                     failed && "bg-danger/8 ring-danger/40 ring-1",
-                    dragIndex === index && "opacity-40",
+                    isDropTarget && "ring-brand ring-2 ring-inset",
                   )}
                 >
+                  {/* Ô đang kéo: phủ skeleton lên trên thay vì làm mờ nội dung —
+                      không đổi cây DOM bên dưới để tay cầm không bị unmount
+                      giữa chừng (mất tay cầm là mất luôn thao tác kéo dở). */}
+                  {isDragging && (
+                    <div
+                      className="bg-card/85 pointer-events-none absolute inset-0 z-10 flex items-center rounded-md px-2"
+                      aria-hidden
+                    >
+                      <Skeleton
+                        active
+                        title={false}
+                        paragraph={{ rows: 1, width: "100%" }}
+                        className="w-full [&_.ant-skeleton-paragraph]:m-0"
+                      />
+                    </div>
+                  )}
+
                   <span
                     draggable={canReorder}
                     onDragStart={() => setDragIndex(index)}
-                    onDragEnd={() => setDragIndex(null)}
+                    onDragEnd={() => {
+                      setDragIndex(null);
+                      setDragOverIndex(null);
+                    }}
                     role="button"
                     tabIndex={-1}
                     aria-label={`Kéo để đổi vị trí ${variant.sku}`}
