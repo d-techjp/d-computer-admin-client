@@ -113,7 +113,7 @@ export function GenerateVariantsModal({
 
   return (
     <Modal
-      title="Sinh phiên bản từ trục biến thể"
+      title="Sinh phiên bản từ biến thể"
       open={open}
       onCancel={onClose}
       onOk={onSubmit}
@@ -130,7 +130,7 @@ export function GenerateVariantsModal({
             type="success"
             showIcon
             message="Đã đủ phiên bản"
-            description="Mọi tổ hợp của các trục biến thể hiện tại đều đã có phiên bản."
+            description="Mọi tổ hợp của các biến thể hiện tại đều đã có phiên bản."
           />
         ) : (
           missing.length > LARGE_COMBINATION_WARNING && (
@@ -138,7 +138,7 @@ export function GenerateVariantsModal({
               type="warning"
               showIcon
               message={`Sắp tạo ${missing.length} phiên bản`}
-              description="Số lượng lớn sẽ khiến bảng phiên bản rất dài. Cân nhắc bớt giá trị ở các trục biến thể."
+              description="Số lượng lớn sẽ khiến bảng phiên bản rất dài. Cân nhắc bớt giá trị ở các biến thể."
             />
           )
         )}

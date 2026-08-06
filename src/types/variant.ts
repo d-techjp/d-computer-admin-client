@@ -26,14 +26,14 @@ export const BUNDLE_INVENTORY_POLICY_HINT: Record<BundleInventoryPolicy, string>
     "Kit đóng gói sẵn tại kho — nhập tồn kho như hàng thường, bán combo chỉ trừ kho combo, không đụng tới thành phần.",
 };
 
-/** Một giá trị hợp lệ của trục biến thể: "16GB", "Bạc" */
+/** Một giá trị hợp lệ của biến thể: "16GB", "Bạc" */
 export interface ProductOptionValue {
   id: string;
   value: string;
   position: number;
 }
 
-/** Trục biến thể: RAM, SSD, Màu sắc... */
+/** biến thể: RAM, SSD, Màu sắc... */
 export interface ProductOption {
   id: string;
   name: string;

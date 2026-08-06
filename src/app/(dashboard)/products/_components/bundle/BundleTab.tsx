@@ -243,7 +243,7 @@ export function BundleTab({ product }: { product: Product }) {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h3 className="text-fg font-semibold">Thành phần combo</h3>
-              <p className="text-muted text-sm">
+              {/* <p className="text-muted text-sm">
                 {BUNDLE_INVENTORY_POLICY_LABEL[
                   bundleVariant.bundleInventoryPolicy ?? "derived_from_components"
                 ]}{" "}
@@ -253,7 +253,7 @@ export function BundleTab({ product }: { product: Product }) {
                     bundleVariant.bundleInventoryPolicy ?? "derived_from_components"
                   ]
                 }
-              </p>
+              </p> */}
             </div>
 
             <div className="flex items-center gap-2">

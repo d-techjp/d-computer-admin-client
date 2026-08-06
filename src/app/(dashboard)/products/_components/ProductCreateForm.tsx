@@ -435,7 +435,7 @@ export function ProductCreateForm({ productType }: { productType: ProductType })
             <p className="text-muted flex gap-2 text-xs">
               <Info size={14} className="mt-0.5 shrink-0" />
               Cần hàng chục tổ hợp (RAM × ổ cứng × màu)? Tạo sản phẩm trước, rồi khai trục
-              biến thể ở tab &ldquo;Trục biến thể&rdquo; để sinh tự động.
+              biến thể ở tab &ldquo;Biến thể&rdquo; để sinh tự động.
             </p>
           )}
         </section>

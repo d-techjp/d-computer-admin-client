@@ -58,58 +58,6 @@ const TYPE_OPTIONS = Object.entries(PRODUCT_TYPE_LABEL).map(([value, label]) => 
   value,
 }));
 
-/** Cột của bảng biến thể hiện khi bung một dòng sản phẩm */
-const variantColumns: ColumnsType<ProductVariant> = [
-  {
-    title: "Phiên bản",
-    dataIndex: "name",
-    render: (name: string, record) => {
-      const options = optionLabelOf(record);
-      return (
-        <div className="min-w-0">
-          <div className="truncate font-medium">{options || name}</div>
-          <div className="text-muted text-xs">{record.sku}</div>
-        </div>
-      );
-    },
-  },
-  {
-    title: "Giá bán",
-    dataIndex: "price",
-    width: 140,
-    align: "right",
-    render: (value: number) => formatCurrency(value),
-  },
-  {
-    title: "Tồn kho",
-    dataIndex: "stock",
-    width: 110,
-    align: "right",
-    render: (value: number, record) =>
-      record.trackInventory ? (
-        <span className={value <= 0 ? "text-danger font-semibold" : ""}>
-          {formatNumber(value)}
-        </span>
-      ) : (
-        <Tooltip title="Không quản lý tồn kho">
-          <span className="text-muted">—</span>
-        </Tooltip>
-      ),
-  },
-  {
-    title: "Trạng thái",
-    dataIndex: "isActive",
-    width: 120,
-    align: "center",
-    render: (isActive: boolean, record) => (
-      <Space size={4}>
-        {record.isDefault && <span className="text-muted text-xs">Mặc định</span>}
-        {!isActive && <span className="text-danger text-xs">Đã tắt</span>}
-      </Space>
-    ),
-  },
-];
-
 export default function ProductsPage() {
   const { message } = App.useApp();
   const [rows, setRows] = useState<Product[]>([]);
@@ -222,14 +170,25 @@ export default function ProductsPage() {
     [loadingVariants, message, variantsByProduct],
   );
 
-  /** Đồng bộ lại số tồn hiển thị sau khi điều chỉnh kho, không cần tải lại cả trang */
+  /**
+   * Đồng bộ lại số tồn hiển thị sau khi điều chỉnh kho, không cần tải lại cả trang.
+   *
+   * Chỉ tin `stock` từ response của `PATCH /variants/:id/stock` — đây là giá
+   * trị server tính, FE không biết trước. Không dùng cả object `updated` để
+   * ghi đè variant hiện có: OpenAPI không khai response schema cho endpoint
+   * này, và ít nhất một trường (`costPrice`) đã xác nhận không bao giờ xuất
+   * hiện trong response — ghi đè cả object có thể vô tình xoá trắng những
+   * trường không liên quan tới lần điều chỉnh kho này.
+   */
   const applyVariantUpdate = (updated: ProductVariant) => {
     setVariantsByProduct((current) => {
       const variants = current[updated.productId];
       if (!variants) return current;
       return {
         ...current,
-        [updated.productId]: variants.map((item) => (item.id === updated.id ? updated : item)),
+        [updated.productId]: variants.map((item) =>
+          item.id === updated.id ? { ...item, stock: updated.stock } : item,
+        ),
       };
     });
 
@@ -238,15 +197,124 @@ export default function ProductsPage() {
         product.id === updated.productId
           ? {
               ...product,
-              variants: product.variants.map((item) => (item.id === updated.id ? updated : item)),
-              totalStock: product.hasVariants
-                ? product.totalStock
-                : updated.stock,
+              variants: product.variants.map((item) =>
+                item.id === updated.id ? { ...item, stock: updated.stock } : item,
+              ),
+              totalStock: product.hasVariants ? product.totalStock : updated.stock,
             }
           : product,
       ),
     );
   };
+
+  /**
+   * Cột của bảng biến thể hiện khi bung một dòng sản phẩm.
+   *
+   * Bề rộng khớp chính xác với cột cùng vị trí ở bảng sản phẩm (Sản phẩm 320 /
+   * Danh mục 140 / Thương hiệu 120 / Giá bán 200 / Tồn kho 110 / Trạng thái 120 /
+   * Thao tác 130) và ẩn header riêng (`showHeader={false}` ở nơi dùng) — nhờ
+   * dùng lại đúng antd `Table` với cùng bộ `width`, antd tự tính toán cột theo
+   * cách giống hệt bảng cha nên các dòng biến thể luôn thẳng hàng với header
+   * phía trên, không phải tự canh tay bằng div/flex (dễ lệch vài px so với
+   * padding cell thật của antd).
+   */
+  const variantColumns = useMemo<ColumnsType<ProductVariant>>(
+    () => [
+      {
+        key: "name",
+        width: 320,
+        render: (_, variant) => {
+          const label = optionLabelOf(variant) || variant.name;
+          return (
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="bg-card border-line relative h-8 w-8 shrink-0 overflow-hidden rounded border">
+                {variant.thumbnail ? (
+                  <Image
+                    src={variant.thumbnail}
+                    alt={label}
+                    fill
+                    unoptimized
+                    sizes="32px"
+                    className="object-cover"
+                  />
+                ) : (
+                  <span className="text-muted flex h-full items-center justify-center">
+                    <ImageOff size={12} />
+                  </span>
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="truncate text-sm">
+                  {label}
+                  {/* Gộp thẳng vào tên thay vì một cột riêng — mặc định là
+                      thuộc tính của chính phiên bản này, không cần tách cột */}
+                  {variant.isDefault && (
+                    <span className="text-muted ml-1 text-xs font-normal">(mặc định)</span>
+                  )}
+                </div>
+                <div className="text-muted text-xs">{variant.sku}</div>
+              </div>
+            </div>
+          );
+        },
+      },
+      // Danh mục & thương hiệu giống hệt dòng sản phẩm cha ngay phía trên — để trống cho đỡ rối mắt
+      { key: "category", width: 140 },
+      { key: "brand", width: 120 },
+      {
+        key: "price",
+        width: 200,
+        align: "right",
+        render: (_, variant) => formatCurrency(variant.price),
+      },
+      {
+        key: "stock",
+        width: 110,
+        align: "right",
+        render: (_, variant) =>
+          variant.trackInventory ? (
+            <span className={variant.stock <= 0 ? "text-danger font-semibold" : ""}>
+              {formatNumber(variant.stock)}
+            </span>
+          ) : (
+            <Tooltip title="Không quản lý tồn kho">
+              <span className="text-muted">—</span>
+            </Tooltip>
+          ),
+      },
+      {
+        key: "status",
+        width: 120,
+        align: "center",
+        render: (_, variant) =>
+          !variant.isActive ? <span className="text-danger text-xs">Đã tắt</span> : null,
+      },
+      {
+        key: "actions",
+        width: 130,
+        align: "center",
+        render: (_, variant) => {
+          const canAdjustStock =
+            variant.trackInventory && variant.bundleInventoryPolicy !== "derived_from_components";
+          if (!canAdjustStock) return null;
+
+          return (
+            <PermissionGate permission="inventory.manage">
+              <Tooltip title="Điều chỉnh tồn kho">
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<Warehouse size={16} />}
+                  onClick={() => setAdjustingVariant(variant)}
+                />
+              </Tooltip>
+            </PermissionGate>
+          );
+        },
+      },
+    ],
+    [],
+  );
 
   const columns = useMemo<ColumnsType<Product>>(
     () => [
@@ -500,11 +568,14 @@ export default function ProductsPage() {
           expandedRowRender: (record) => (
             <Table<ProductVariant>
               rowKey="id"
-              size="small"
+              size="middle"
+              showHeader={false}
               columns={variantColumns}
               dataSource={variantsByProduct[record.id] ?? []}
               loading={loadingVariants[record.id]}
               pagination={false}
+              rowClassName="!bg-subtle hover:!bg-row-hover"
+              locale={{ emptyText: "Chưa có phiên bản" }}
             />
           ),
         }}

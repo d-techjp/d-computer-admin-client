@@ -15,6 +15,12 @@ bundle). Xem thêm [database-products.dbml](../database-products.dbml) cho sơ �
 > Sản phẩm không có biến thể vẫn có đúng 1 variant mặc định — nó nằm sẵn ở `variants[0]`
 > trong mọi response.
 
+> **Quy tắc số 2 — ảnh riêng của biến thể luôn đi 2 bước:** lúc **tạo** (`POST /products`,
+> `POST /products/:id/variants`) biến thể chỉ nhận `thumbnail`/`images` dạng **URL string**,
+> KHÔNG nhận file upload trực tiếp. Muốn ảnh riêng theo từng biến thể (vd màu Đỏ/Xanh khác
+> ảnh) thì tạo biến thể trước — dùng ảnh chung của product hoặc bỏ trống — rồi gọi
+> `PATCH /variants/:id` (multipart, xem mục 4.1) để upload/gán ảnh riêng.
+
 `productType` quyết định luồng nhập liệu:
 
 ```mermaid
@@ -198,6 +204,40 @@ hoặc thừa đều `400`.
 
 ---
 
+## 4.1 Ảnh riêng cho biến thể — luôn là bước 2, sau khi đã tạo
+
+Không có API tạo biến thể kèm upload file. Mọi luồng tạo (Luồng A/B/C/D) chỉ nhận
+`thumbnail`/`images` dạng URL sẵn có cho từng phần tử `variants`. Cần ảnh riêng theo
+biến thể thì làm theo 2 bước:
+
+```mermaid
+sequenceDiagram
+    participant FE
+    participant API
+
+    FE->>API: POST /products { variants: [...] } (không có ảnh riêng, hoặc dùng ảnh chung)
+    API-->>FE: variants[] kèm id
+
+    Note over FE: Vào màn hình chi tiết từng biến thể để gán ảnh
+
+    FE->>API: PATCH /variants/{variantId} (multipart)<br/>thumbnailFile, imagesFiles
+    API-->>FE: variant với thumbnail/images đã cập nhật
+```
+
+```js
+const fd = new FormData();
+fd.append('thumbnailFile', file);
+imageFiles.forEach((f) => fd.append('imagesFiles', f));
+await fetch(`/api/v1/variants/${variantId}`, { method: 'PATCH', body: fd });
+```
+
+Ngữ nghĩa giống hệt ảnh product ở Luồng A: không gửi `thumbnailFile`/`imagesFiles`/
+`thumbnail`/`images` → giữ ảnh cũ; chỉ gửi `imagesFiles` (không kèm `images`) → gộp
+thêm vào ảnh hiện có, không thay thế. Không set ảnh riêng thì FE fallback về ảnh
+product: `variant.thumbnail ?? product.thumbnail` (xem mục 8).
+
+---
+
 ## 5. Luồng D — Combo
 
 ### Chọn chính sách tồn kho
@@ -313,7 +353,7 @@ sequenceDiagram
 | `POST` | `/products/:id/variants/generate` | `product.manage` | Sinh tổ hợp, idempotent |
 | `GET` `PUT` | `/products/:id/options` | public / `product.manage` | `PUT` thay thế toàn bộ |
 | `GET` | `/variants/:id` | public | |
-| `PATCH` | `/variants/:id` | `product.manage` | Hỗ trợ multipart upload ảnh riêng |
+| `PATCH` | `/variants/:id` | `product.manage` | Hỗ trợ multipart upload ảnh riêng — **là API duy nhất** làm được việc này, xem mục 4.1 |
 | `PATCH` | `/variants/:id/stock` | `inventory.manage` | `{ delta, reason }`, `delta` âm để trừ |
 | `DELETE` | `/variants/:id` | `product.manage` | |
 | `GET` | `/variants/low-stock` | `inventory.manage` | Biến thể dưới ngưỡng |
@@ -418,3 +458,5 @@ Trạng thái hiển thị của một variant:
 - [ ] Trang cảnh báo kho đổi sang `GET /variants/low-stock` (trả biến thể, kèm `product`).
 - [ ] Chi tiết đơn hàng lọc `parentItemId === null` cho dòng tính tiền.
 - [ ] Trang chi tiết sản phẩm dựng variant picker từ `options` + `variants[].optionValues`.
+- [ ] Form tạo sản phẩm/biến thể KHÔNG có ô upload ảnh riêng cho từng biến thể —
+      ảnh riêng chỉ gán được sau khi tạo, qua màn hình sửa biến thể (`PATCH /variants/:id`).

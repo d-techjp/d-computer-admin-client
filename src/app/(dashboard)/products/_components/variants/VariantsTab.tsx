@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Image from "next/image";
 import { App, Alert, Button, Input, InputNumber, Popconfirm, Radio, Switch, Tag, Tooltip } from "antd";
-import { ImageOff, Plus, RotateCcw, Trash2, Warehouse } from "lucide-react";
+import { Camera, GripVertical, ImageOff, Plus, RotateCcw, Trash2, Warehouse } from "lucide-react";
 
 import { PermissionGate } from "@/components/auth/PermissionGate";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -14,6 +14,7 @@ import { isLowStock, optionLabelOf, type ProductVariant } from "@/types/variant"
 
 import { AddVariantModal } from "./AddVariantModal";
 import { AdjustStockModal } from "./AdjustStockModal";
+import { VariantImagesModal } from "./VariantImagesModal";
 
 /** Các trường sửa được ngay trên bảng */
 interface VariantDraft {
@@ -25,9 +26,14 @@ interface VariantDraft {
   lowStockThreshold?: number;
 }
 
-// Ảnh | Tên | SKU | Giá | So sánh | Vốn | Tồn | Ngưỡng | Mặc định | Bật | Xoá
+// Kéo | Ảnh | Tên | SKU | Giá | So sánh | Vốn | Tồn | Ngưỡng | Mặc định | Bật | Xoá
+//
+// `items-start` (không phải center): cột "Tên phiên bản" cao hơn các cột khác
+// vì có thêm dòng ghi chú cấu hình bên dưới ô nhập — nếu căn giữa theo chiều
+// dọc, input của các cột còn lại bị đẩy xuống thấp hơn input tên, nhìn lệch
+// hàng. Căn theo đỉnh thì mọi ô nhập luôn ngang hàng nhau.
 const ROW_GRID =
-  "grid grid-cols-[44px_minmax(160px,1.4fr)_minmax(140px,1.2fr)_repeat(3,minmax(110px,1fr))_minmax(120px,1fr)_minmax(90px,0.7fr)_72px_64px_44px] items-center gap-2";
+  "grid grid-cols-[20px_44px_minmax(160px,1.4fr)_minmax(140px,1.2fr)_repeat(3,minmax(110px,1fr))_minmax(120px,1fr)_minmax(90px,0.7fr)_72px_64px_44px] items-start gap-2";
 
 function toDraft(variant: ProductVariant): VariantDraft {
   return {
@@ -82,7 +88,9 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
   const [failedIds, setFailedIds] = useState<string[]>([]);
   const [savingAll, setSavingAll] = useState(false);
   const [adjustingVariant, setAdjustingVariant] = useState<ProductVariant>();
+  const [imagesVariant, setImagesVariant] = useState<ProductVariant>();
   const [addOpen, setAddOpen] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   const canManage = has("product.manage");
   const isService = product.productType === "service";
@@ -137,10 +145,17 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
 
     setSavingIds((current) => [...current, variant.id]);
     try {
-      const updated = await updateVariant(variant.id, payload);
-      replaceVariant(updated);
+      await updateVariant(variant.id, payload);
+      // Không dùng response PATCH để ghi đè cả dòng: OpenAPI không khai
+      // response schema cho endpoint này, và trên thực tế `costPrice` không
+      // bao giờ xuất hiện trong bất kỳ response nào của backend (đã kiểm tra
+      // trực tiếp) — tin response có thể vô tình xoá trắng những trường không
+      // liên quan tới lần lưu này. `payload` là đúng những gì vừa gửi và đã
+      // được backend chấp nhận (không lỗi), nên merge thẳng lên variant hiện
+      // có là đủ và an toàn hơn nhiều.
+      replaceVariant({ ...variant, ...payload });
       setFailedIds((current) => current.filter((id) => id !== variant.id));
-      if (!silent) message.success(`Đã lưu ${updated.sku}`);
+      if (!silent) message.success(`Đã lưu ${draft.sku}`);
       return true;
     } catch (error) {
       setFailedIds((current) => (current.includes(variant.id) ? current : [...current, variant.id]));
@@ -176,21 +191,72 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
   const toggleField = async (variant: ProductVariant, patch: VariantPayload) => {
     setSavingIds((current) => [...current, variant.id]);
     try {
-      const updated = await updateVariant(variant.id, patch);
+      await updateVariant(variant.id, patch);
+      // Merge trực tiếp thay vì tin response PATCH — cùng lý do như saveVariant.
+      const merged = { ...variant, ...patch };
       // Đặt mặc định là thao tác độc quyền — dòng khác phải tự bỏ cờ
       const next = variants.map((item) =>
-        item.id === updated.id
-          ? updated
+        item.id === merged.id
+          ? merged
           : patch.isDefault
             ? { ...item, isDefault: false }
             : item,
       );
       applyVariants(next);
-      setDrafts((current) => ({ ...current, [updated.id]: toDraft(updated) }));
+      setDrafts((current) => ({ ...current, [merged.id]: toDraft(merged) }));
     } catch (error) {
       message.error(error instanceof Error ? error.message : "Không cập nhật được biến thể");
     } finally {
       setSavingIds((current) => current.filter((id) => id !== variant.id));
+    }
+  };
+
+  /**
+   * Kéo-thả đổi thứ tự hiển thị — lưu ngay qua `position` của
+   * `PATCH /variants/{id}`, không có gì để "soạn dở" giống hai công tắc
+   * isDefault/isActive ở trên.
+   *
+   * Chỉ những dòng thật sự đổi vị trí (so với `position` đang lưu) mới bị gọi
+   * API — kéo một dòng chỉ 1 bậc thường chỉ động tới 2 dòng, không phải toàn
+   * bộ danh sách.
+   */
+  const reorderVariant = async (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+
+    const reordered = [...variants];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+    // Đổi thứ tự hiển thị ngay, không đợi lưu xong mới thấy — lưu chạy nền phía sau
+    applyVariants(reordered);
+
+    const changes = reordered
+      .map((item, index) => ({ item, index }))
+      .filter(({ item, index }) => item.position !== index);
+    if (changes.length === 0) return;
+
+    setSavingIds((current) => [...current, ...changes.map(({ item }) => item.id)]);
+    const results = await Promise.allSettled(
+      changes.map(({ item, index }) => updateVariant(item.id, { position: index })),
+    );
+    const failed = changes
+      .filter((_, index) => results[index].status === "rejected")
+      .map(({ item }) => item.id);
+
+    // Cập nhật lại `position` cục bộ cho dòng lưu thành công để lần kéo sau
+    // tính đúng baseline; dòng lỗi giữ nguyên position cũ, cần kéo lại.
+    applyVariants(
+      reordered.map((item, index) => {
+        const changed = changes.some((change) => change.item.id === item.id);
+        return changed && !failed.includes(item.id) ? { ...item, position: index } : item;
+      }),
+    );
+    setSavingIds((current) =>
+      current.filter((id) => !changes.some((change) => change.item.id === id)),
+    );
+
+    if (failed.length > 0) {
+      setFailedIds((current) => [...new Set([...current, ...failed])]);
+      message.error(`${failed.length} phiên bản chưa lưu được vị trí mới, thử kéo lại`);
     }
   };
 
@@ -217,7 +283,7 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
           type="warning"
           showIcon
           message={`${orphanCount} phiên bản chưa gán cấu hình`}
-          description="Phiên bản tạo trước khi khai trục biến thể vẫn bán được nhưng không nằm trong lưới chọn cấu hình ở trang sản phẩm. Nên xoá và tạo lại với đúng tổ hợp option."
+          description="Phiên bản tạo trước khi khai biến thể vẫn bán được nhưng không nằm trong lưới chọn cấu hình ở trang sản phẩm. Nên xoá và tạo lại với đúng tổ hợp option."
         />
       )}
 
@@ -265,6 +331,7 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
           <div className="min-w-295 space-y-2">
             <div className={cn(ROW_GRID, "text-muted text-xs font-medium")}>
               <span />
+              <span />
               <span>Tên phiên bản</span>
               <span>Mã SKU</span>
               <span>Giá bán</span>
@@ -277,7 +344,7 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
               <span />
             </div>
 
-            {variants.map((variant) => {
+            {variants.map((variant, index) => {
               const draft = drafts[variant.id] ?? toDraft(variant);
               const saving = savingIds.includes(variant.id);
               const failed = failedIds.includes(variant.id);
@@ -285,33 +352,80 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
               const derivedBundle = variant.bundleInventoryPolicy === "derived_from_components";
               const thumbnail = variant.thumbnail ?? product.thumbnail ?? product.images[0];
               const options = optionLabelOf(variant);
+              const canReorder = canManage && variants.length > 1;
 
               return (
                 <div
                   key={variant.id}
+                  onDragOver={(event) => {
+                    if (dragIndex === null) return;
+                    event.preventDefault();
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    if (dragIndex !== null && dragIndex !== index) {
+                      void reorderVariant(dragIndex, index);
+                    }
+                    setDragIndex(null);
+                  }}
                   className={cn(
                     ROW_GRID,
                     "rounded-md px-1 py-1 transition",
                     rowDirty && "bg-brand/5",
                     failed && "bg-danger/8 ring-danger/40 ring-1",
+                    dragIndex === index && "opacity-40",
                   )}
                 >
-                  <div className="bg-subtle border-line relative h-9 w-9 shrink-0 overflow-hidden rounded border">
-                    {thumbnail ? (
-                      <Image
-                        src={thumbnail}
-                        alt={variant.name}
-                        fill
-                        unoptimized
-                        sizes="36px"
-                        className="object-cover"
-                      />
-                    ) : (
-                      <span className="text-muted flex h-full items-center justify-center">
-                        <ImageOff size={14} />
-                      </span>
+                  <span
+                    draggable={canReorder}
+                    onDragStart={() => setDragIndex(index)}
+                    onDragEnd={() => setDragIndex(null)}
+                    role="button"
+                    tabIndex={-1}
+                    aria-label={`Kéo để đổi vị trí ${variant.sku}`}
+                    className={cn(
+                      "flex items-center justify-center pt-1.5",
+                      canReorder
+                        ? "text-muted hover:text-fg cursor-grab active:cursor-grabbing"
+                        : "text-line cursor-not-allowed",
                     )}
-                  </div>
+                  >
+                    <GripVertical size={16} />
+                  </span>
+
+                  <Tooltip title={canManage ? "Ảnh riêng cho phiên bản này" : undefined}>
+                    <button
+                      type="button"
+                      disabled={!canManage}
+                      onClick={() => setImagesVariant(variant)}
+                      aria-label={`Ảnh riêng của ${variant.sku}`}
+                      className={cn(
+                        "group bg-subtle border-line relative h-9 w-9 shrink-0 overflow-hidden rounded border",
+                        canManage && "cursor-pointer",
+                      )}
+                    >
+                      {thumbnail ? (
+                        <Image
+                          src={thumbnail}
+                          alt={variant.name}
+                          fill
+                          unoptimized
+                          sizes="36px"
+                          className="object-cover"
+                        />
+                      ) : (
+                        <span className="text-muted flex h-full items-center justify-center">
+                          <ImageOff size={14} />
+                        </span>
+                      )}
+
+                      {canManage && (
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-transparent transition group-hover:bg-black/40 group-hover:text-white">
+                          <Camera size={13} />
+                        </span>
+                      )}
+                    </button>
+                  </Tooltip>
 
                   <div className="min-w-0">
                     <Input
@@ -419,7 +533,9 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
                     aria-label={`Ngưỡng cảnh báo của ${variant.sku}`}
                   />
 
-                  <div className="flex justify-center">
+                  {/* pt-1: Radio/Switch/nút thấp hơn ô input (32px) — nhích xuống
+                      một chút cho gần tâm input thay vì dính sát mép trên */}
+                  <div className="flex justify-center pt-1">
                     <Radio
                       checked={variant.isDefault}
                       disabled={!canManage || saving || variant.isDefault}
@@ -428,7 +544,7 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
                     />
                   </div>
 
-                  <div className="flex justify-center">
+                  <div className="flex justify-center pt-1">
                     <Switch
                       size="small"
                       checked={variant.isActive}
@@ -506,7 +622,29 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
       <AdjustStockModal
         variant={adjustingVariant}
         onClose={() => setAdjustingVariant(undefined)}
-        onAdjusted={replaceVariant}
+        // Chỉ tin `stock` từ response của endpoint này (giá trị server tính,
+        // FE không biết trước) — các trường khác giữ nguyên từ variant hiện
+        // có, cùng lý do như saveVariant/toggleField ở trên.
+        onAdjusted={(updated) => {
+          const current = variants.find((item) => item.id === updated.id);
+          replaceVariant(current ? { ...current, stock: updated.stock } : updated);
+        }}
+      />
+
+      <VariantImagesModal
+        variant={imagesVariant}
+        fallbackThumbnail={product.thumbnail ?? product.images[0]}
+        onClose={() => setImagesVariant(undefined)}
+        // Chỉ tin thumbnail/images từ response — đây là URL R2 do server sinh
+        // ra, FE không biết trước.
+        onSaved={(updated) => {
+          const current = variants.find((item) => item.id === updated.id);
+          replaceVariant(
+            current
+              ? { ...current, thumbnail: updated.thumbnail, images: updated.images }
+              : updated,
+          );
+        }}
       />
 
       <AddVariantModal

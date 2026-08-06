@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Alert, Button } from "antd";
+import { Button } from "antd";
 
 import { PageHeader } from "@/components/common/PageHeader";
 import routes from "@/config/routes";
@@ -40,14 +40,6 @@ export default function NewProductPage() {
             <Button>Huỷ</Button>
           </Link>
         }
-      />
-
-      <Alert
-        type="info"
-        showIcon
-        className="mb-4"
-        message="Loại sản phẩm không đổi được sau khi tạo"
-        description="Nó quyết định cách nhập giá, tồn kho và cấu hình. Chọn nhầm thì phải tạo lại sản phẩm mới."
       />
 
       <ProductTypePicker onChange={setProductType} />

@@ -31,7 +31,7 @@ interface SpecListFieldProps<T extends FieldValues> {
  * vì mỗi nhóm hàng có bộ thông số rất khác nhau.
  *
  * Đây là thông số **dùng chung mọi biến thể** — thông số khác nhau giữa các
- * biến thể phải khai bằng option ở tab "Trục biến thể".
+ * biến thể phải khai bằng option ở tab "biến thể".
  */
 export function SpecListField<T extends FieldValues>({
   control,

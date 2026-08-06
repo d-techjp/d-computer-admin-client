@@ -1,5 +1,5 @@
 /**
- * Biến thể, trục biến thể (option) và thành phần combo.
+ * Biến thể, biến thể (option) và thành phần combo.
  *
  * Tách khỏi `products.ts` vì đây là resource riêng (`/variants/...`), có
  * permission riêng (`inventory.manage` cho điều chỉnh tồn kho) và vòng đời

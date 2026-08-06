@@ -36,7 +36,7 @@ function sameDrafts(a: DraftOption[], b: DraftOption[]) {
 }
 
 /**
- * Trục biến thể — `PUT /products/{id}/options`.
+ * biến thể — `PUT /products/{id}/options`.
  *
  * Endpoint là **replace-all** và trả 400 nếu payload bỏ mất một giá trị đang
  * có biến thể sử dụng. Vì vậy mỗi chip giá trị hiển thị sẵn số biến thể đang
@@ -122,9 +122,9 @@ export function OptionsTab({
     try {
       await setProductOptions(product.id, payload);
       await onReload();
-      message.success("Đã lưu trục biến thể");
+      message.success("Đã lưu biến thể");
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "Không lưu được trục biến thể");
+      message.error(error instanceof Error ? error.message : "Không lưu được biến thể");
     } finally {
       setSaving(false);
     }
@@ -142,16 +142,16 @@ export function OptionsTab({
       <Alert
         type="info"
         showIcon
-        message="Khai trục biến thể trước khi tạo phiên bản"
-        description="Phiên bản tạo lúc chưa có trục biến thể sẽ không nằm trong lưới chọn cấu hình ở trang sản phẩm. Mỗi lần lưu là thay thế toàn bộ danh sách bên dưới."
+        message="Khai biến thể trước khi tạo phiên bản"
+        description="Phiên bản tạo lúc chưa có biến thể sẽ không nằm trong lưới chọn cấu hình ở trang sản phẩm. Mỗi lần lưu là thay thế toàn bộ danh sách bên dưới."
       />
 
       <section className="bg-card border-line shadow-card space-y-4 rounded-lg border p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-fg font-semibold">Trục biến thể</h3>
+            <h3 className="text-fg font-semibold">Biến thể</h3>
             <p className="text-muted text-sm">
-              Mỗi trục là một thuộc tính khác nhau giữa các phiên bản: RAM, dung lượng, màu...
+              Mỗi biến thể là một thuộc tính khác nhau giữa các phiên bản: RAM, dung lượng, màu...
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -162,7 +162,7 @@ export function OptionsTab({
             )}
             <PermissionGate permission="product.manage">
               <Button type="primary" loading={saving} disabled={!dirty} onClick={onSave}>
-                Lưu trục biến thể
+                Lưu biến thể
               </Button>
             </PermissionGate>
           </div>
@@ -170,7 +170,7 @@ export function OptionsTab({
 
         {drafts.length === 0 ? (
           <div className="border-line text-muted rounded-md border border-dashed p-6 text-center text-sm">
-            Chưa khai trục biến thể nào. Sản phẩm vẫn bán bình thường với các phiên bản đang có.
+            Chưa khai biến thể nào. Sản phẩm vẫn bán bình thường với các phiên bản đang có.
           </div>
         ) : (
           <div className="space-y-3">
@@ -198,7 +198,7 @@ export function OptionsTab({
           disabled={saving}
           onClick={() => setDrafts((current) => [...current, { name: "", values: [] }])}
         >
-          Thêm trục biến thể
+          Thêm biến thể
         </Button>
       </section>
 
@@ -208,7 +208,7 @@ export function OptionsTab({
             <div>
               <h3 className="text-fg font-semibold">Sinh phiên bản tự động</h3>
               <p className="text-muted text-sm">
-                {combinationCount} tổ hợp từ {savedOptions.length} trục · đã có{" "}
+                {combinationCount} tổ hợp từ {savedOptions.length} biến thể · đã có{" "}
                 {product.variants.length} phiên bản
                 {missingCombinations > 0 ? ` · thiếu ${missingCombinations}` : ""}
               </p>
@@ -227,7 +227,7 @@ export function OptionsTab({
 
           {dirty && (
             <p className="text-warning text-sm">
-              Lưu trục biến thể trước khi sinh phiên bản.
+              Lưu biến thể trước khi sinh phiên bản.
             </p>
           )}
         </section>
@@ -272,7 +272,7 @@ function OptionCard({
   return (
     <div className="border-line rounded-md border p-3">
       <div className="flex items-start gap-2">
-        <FormItemLayout label="Tên trục" className="flex-1" required>
+        <FormItemLayout label="Tên biến thể" className="flex-1" required>
           <Input
             value={option.name}
             disabled={disabled}

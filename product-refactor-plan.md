@@ -82,7 +82,7 @@ OpenAPI là contract thật, doc viết tay đã đơn giản hoá:
 /products/[id]?tab=general       thông tin chung (master)
 /products/[id]?tab=description   mô tả chi tiết (giữ lazy-load hiện tại)
 /products/[id]?tab=variants      Giá & kho | Phiên bản   (standard / service)
-/products/[id]?tab=options       Trục biến thể           (standard, nhiều phiên bản)
+/products/[id]?tab=options       biến thể           (standard, nhiều phiên bản)
 /products/[id]?tab=bundle        Thành phần combo        (bundle)
 ```
 
@@ -127,7 +127,7 @@ Bảng editable inline:
 - "Thêm phiên bản": nếu đã có option → modal bắt chọn **đủ 1 value cho mỗi option**,
   FE chặn tổ hợp trùng trước khi gọi.
 
-### 4.4 Tab "Trục biến thể"
+### 4.4 Tab "biến thể"
 
 - Mỗi option = 1 card: tên + chip list values, kéo đổi `position`.
 - `PUT` là **replace-all, 400 nếu xoá value đang dùng** → FE đếm trước số variant dùng mỗi

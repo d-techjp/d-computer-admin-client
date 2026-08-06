@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { App, Alert, Button, Popconfirm, Skeleton, Tabs } from "antd";
-import { Trash2 } from "lucide-react";
+import { ArrowLeft, Trash2 } from "lucide-react";
 
-import { PageHeader } from "@/components/common/PageHeader";
 import { ProductStatusTag, ProductTypeTag } from "@/components/common/StatusTag";
 import routes from "@/config/routes";
 import { deleteProduct, fetchProduct } from "@/lib/api/products";
@@ -124,7 +124,7 @@ export function ProductWorkspace({ productId }: { productId: string }) {
     if (product.productType === "standard") {
       items.push({
         key: "options",
-        label: "Trục biến thể",
+        label: "Biến thể",
         children: <OptionsTab product={product} onReload={load} />,
       });
     }
@@ -164,13 +164,28 @@ export function ProductWorkspace({ productId }: { productId: string }) {
 
   return (
     <>
-      <PageHeader
-        title={product.name}
-        breadcrumb={[
-          { label: "Quản lý sản phẩm", href: routes.products.index },
-          { label: product.name },
-        ]}
-        extra={
+      <div className="mb-3">
+        <Link
+          href={routes.products.index}
+          className="text-muted hover:text-fg mb-1.5 inline-flex items-center gap-1 text-sm transition-colors"
+        >
+          <ArrowLeft size={14} />
+          Danh sách sản phẩm
+        </Link>
+
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-fg truncate text-xl font-semibold">{product.name}</h1>
+              <ProductTypeTag type={product.productType} />
+              <ProductStatusTag status={product.status} />
+            </div>
+            <p className="text-muted mt-0.5 text-sm">
+              {product.categoryName || "Chưa có danh mục"}
+              {product.brandName ? ` · ${product.brandName}` : ""}
+            </p>
+          </div>
+
           <Popconfirm
             title="Xoá sản phẩm này?"
             description="Xoá mềm, kéo theo toàn bộ biến thể."
@@ -183,16 +198,7 @@ export function ProductWorkspace({ productId }: { productId: string }) {
               Xoá sản phẩm
             </Button>
           </Popconfirm>
-        }
-      />
-
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <ProductTypeTag type={product.productType} />
-        <ProductStatusTag status={product.status} />
-        <span className="text-muted text-sm">
-          {product.categoryName || "Chưa có danh mục"}
-          {product.brandName ? ` · ${product.brandName}` : ""}
-        </span>
+        </div>
       </div>
 
       <Tabs activeKey={activeTab} onChange={setTab} items={tabItems} destroyOnHidden={false} />
