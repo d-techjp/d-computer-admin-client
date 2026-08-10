@@ -90,7 +90,7 @@ export function SpecListField<T extends FieldValues>({
 
             <Controller
               control={control}
-              name={`${name}.${index}.label` as Path<T>}
+              name={`${name}.${index}.name` as Path<T>}
               render={({ field }) => (
                 <Input
                   {...field}
@@ -132,7 +132,7 @@ export function SpecListField<T extends FieldValues>({
           block
           disabled={disabled}
           icon={<Plus size={16} />}
-          onClick={() => append({ label: "", value: "" } as never)}
+          onClick={() => append({ name: "", value: "", position: fields.length } as never)}
         >
           Thêm thông số
         </Button>
@@ -141,13 +141,15 @@ export function SpecListField<T extends FieldValues>({
   );
 }
 
-/** Chuyển mảng nhãn/giá trị của form về object `specifications` mà API nhận */
+/** Chuyển mảng form về contract `specifications` và cập nhật position theo thứ tự hiện tại */
 export function toSpecifications(specs: ProductSpec[]) {
-  return Object.fromEntries(
-    specs
-      .filter((spec) => spec.label.trim() && spec.value.trim())
-      .map((spec) => [spec.label.trim(), spec.value.trim()]),
-  );
+  return specs
+    .filter((spec) => spec.name.trim() && spec.value.trim())
+    .map((spec, position) => ({
+      name: spec.name.trim(),
+      value: spec.value.trim(),
+      position,
+    }));
 }
 
 export default SpecListField;

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { App, Button, Input, Modal, Select, Space, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Pencil, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 
 import { DataTable } from "@/components/common/DataTable";
@@ -11,6 +12,7 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { SelectField, TextField } from "@/components/form/fields";
 import { FormItemLayout } from "@/components/form/FormItemLayout";
 import { SearchFilterBar } from "@/components/form/SearchFilterBar";
+import routes from "@/config/routes";
 import {
   categoryOptionsFrom,
   createCategory,
@@ -152,7 +154,16 @@ export default function CategoriesPage() {
 
   const columns = useMemo<ColumnsType<Category>>(
     () => [
-      { title: "Tên danh mục", dataIndex: "name", width: 220 },
+      {
+        title: "Tên danh mục",
+        dataIndex: "name",
+        width: 220,
+        render: (name: string, record) => (
+          <Link href={`${routes.products.index}?category=${record.id}`} className="font-semibold underline!">
+            {name}
+          </Link>
+        ),
+      },
       { title: "Đường dẫn", dataIndex: "slug", width: 180 },
       {
         title: "Danh mục cha",

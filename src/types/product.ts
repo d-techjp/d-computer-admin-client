@@ -18,8 +18,9 @@ export type ProductType = "standard" | "bundle" | "service";
  * biến thể phải khai bằng option (`ProductOption`).
  */
 export interface ProductSpec {
-  label: string;
+  name: string;
   value: string;
+  position: number;
 }
 
 /**
@@ -57,6 +58,7 @@ export interface Product {
    * `GET /products/:id` mới trả đầy đủ.
    */
   variants: ProductVariant[];
+  variantCount: number;
   /** Chỉ có ở response chi tiết */
   options: ProductOption[];
   /**

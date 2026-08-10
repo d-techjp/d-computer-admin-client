@@ -15,10 +15,12 @@ import { FormItemLayout } from "@/components/form/FormItemLayout";
 import {
   DEFAULT_PRICE_RANGE,
   PriceRangePresetFilter,
+  resolvePricePreset,
   type PriceRangeSearchValue,
 } from "@/components/form/PriceRangePresetFilter";
 import { SearchFilterBar } from "@/components/form/SearchFilterBar";
 import routes from "@/config/routes";
+import { useUrlSearchParams } from "@/hooks/useUrlSearchParams";
 import { brandOptionsFrom, categoryOptionsFrom, listBrands, listCategories } from "@/lib/api/catalog";
 import { deleteProduct, listProducts } from "@/lib/api/products";
 import { listProductVariants } from "@/lib/api/variants";
@@ -48,6 +50,58 @@ interface ProductFilters {
 
 const DEFAULT_FILTERS: ProductFilters = { keyword: "", priceRange: DEFAULT_PRICE_RANGE };
 
+/** Đọc filter/page/pageSize đang áp dụng từ URL — nguồn sự thật cho `appliedFilters` */
+function filtersFromSearchParams(params: URLSearchParams) {
+  const preset = (params.get("price") as PriceRangeSearchValue["preset"] | null) ?? DEFAULT_PRICE_RANGE.preset;
+  const priceRange: PriceRangeSearchValue =
+    preset === "custom"
+      ? {
+          preset,
+          min: params.has("min") ? Number(params.get("min")) : undefined,
+          max: params.has("max") ? Number(params.get("max")) : undefined,
+        }
+      : resolvePricePreset(preset);
+
+  const filters: ProductFilters = {
+    keyword: params.get("q") ?? DEFAULT_FILTERS.keyword,
+    productType: (params.get("type") as ProductType | null) ?? undefined,
+    categoryId: params.get("category") ?? undefined,
+    brandId: params.get("brand") ?? undefined,
+    status: (params.get("status") as ProductStatus | null) ?? undefined,
+    priceRange,
+  };
+
+  return {
+    filters,
+    page: Number(params.get("page")) || 1,
+    pageSize: Number(params.get("pageSize")) || DEFAULT_PAGE_SIZE,
+  };
+}
+
+/** Chiều ngược lại — bỏ qua giá trị bằng default để URL gọn, dễ share */
+function searchParamsFromFilters(
+  filters: ProductFilters,
+  page: number,
+  pageSize: number,
+): Record<string, string | undefined> {
+  return {
+    q: filters.keyword || undefined,
+    type: filters.productType,
+    category: filters.categoryId,
+    brand: filters.brandId,
+    status: filters.status,
+    price: filters.priceRange.preset !== "all" ? filters.priceRange.preset : undefined,
+    min: filters.priceRange.preset === "custom" && filters.priceRange.min !== undefined
+      ? String(filters.priceRange.min)
+      : undefined,
+    max: filters.priceRange.preset === "custom" && filters.priceRange.max !== undefined
+      ? String(filters.priceRange.max)
+      : undefined,
+    page: page > 1 ? String(page) : undefined,
+    pageSize: pageSize !== DEFAULT_PAGE_SIZE ? String(pageSize) : undefined,
+  };
+}
+
 const STATUS_OPTIONS = Object.entries(PRODUCT_STATUS_LABEL).map(([value, label]) => ({
   label,
   value,
@@ -68,13 +122,25 @@ function clientProductDetailUrl(product: Product) {
 
 export default function ProductsPage() {
   const { message } = App.useApp();
+  const { searchParams, write } = useUrlSearchParams();
+  const { filters: appliedFilters, page, pageSize } = useMemo(
+    () => filtersFromSearchParams(searchParams),
+    [searchParams],
+  );
+
   const [rows, setRows] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState<ProductFilters>(DEFAULT_FILTERS);
-  const [appliedFilters, setAppliedFilters] = useState<ProductFilters>(DEFAULT_FILTERS);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [filters, setFilters] = useState<ProductFilters>(appliedFilters);
+  // Khớp lại filter bar với `appliedFilters` khi nó đổi từ bên ngoài (Back/
+  // Forward, dán URL khác, link filter sẵn từ trang khác) — setState ngay
+  // trong render thay vì effect, theo pattern "Adjusting state when a prop
+  // changes" của React để tránh render thừa.
+  const [syncedFilters, setSyncedFilters] = useState(appliedFilters);
+  if (syncedFilters !== appliedFilters) {
+    setSyncedFilters(appliedFilters);
+    setFilters(appliedFilters);
+  }
   const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([]);
   const [brandOptions, setBrandOptions] = useState<SelectOption[]>([]);
   const [adjustingVariant, setAdjustingVariant] = useState<ProductVariant>();
@@ -138,14 +204,12 @@ export default function ProductsPage() {
   };
 
   const search = () => {
-    setPage(1);
-    setAppliedFilters({ ...filters });
+    write(searchParamsFromFilters(filters, 1, pageSize));
   };
 
   const reset = () => {
-    setPage(1);
     setFilters(DEFAULT_FILTERS);
-    setAppliedFilters(DEFAULT_FILTERS);
+    write(searchParamsFromFilters(DEFAULT_FILTERS, 1, DEFAULT_PAGE_SIZE));
   };
 
   const handleDelete = useCallback(
@@ -369,7 +433,7 @@ export default function ProductsPage() {
                   {record.hasVariants ? (
                     <span className="inline-flex items-center gap-1">
                       <Layers size={12} />
-                      {formatNumber(record.variants.length || 0)} phiên bản
+                      {formatNumber(record.variantCount || 0)} phiên bản
                     </span>
                   ) : (
                     (defaultVariant?.sku ?? "—")
@@ -601,8 +665,10 @@ export default function ProductsPage() {
           pageSize,
           total,
           onChange: (nextPage, nextPageSize) => {
-            setPage(nextPage);
-            setPageSize(nextPageSize);
+            write({
+              page: nextPage > 1 ? String(nextPage) : undefined,
+              pageSize: nextPageSize !== DEFAULT_PAGE_SIZE ? String(nextPageSize) : undefined,
+            });
           },
         }}
       />

@@ -191,30 +191,34 @@ function generateProducts(count: number): MockProduct[] {
       status,
       specs: isComputer
         ? [
-            { label: "CPU", value: faker.helpers.arrayElement(CPU_OPTIONS) },
-            { label: "RAM", value: faker.helpers.arrayElement(RAM_OPTIONS) },
+            { name: "CPU", value: faker.helpers.arrayElement(CPU_OPTIONS), position: 0 },
+            { name: "RAM", value: faker.helpers.arrayElement(RAM_OPTIONS), position: 1 },
             {
-              label: "Ổ cứng",
+              name: "Ổ cứng",
               value: faker.helpers.arrayElement(STORAGE_OPTIONS),
+              position: 2,
             },
             // Chỉ laptop mới có màn hình tích hợp
             ...(isLaptop
               ? [
                   {
-                    label: "Màn hình",
+                    name: "Màn hình",
                     value: faker.helpers.arrayElement(SCREEN_OPTIONS),
+                    position: 3,
                   },
                 ]
               : []),
             {
-              label: "Bảo hành",
+              name: "Bảo hành",
               value: `${faker.number.int({ min: 12, max: 36 })} tháng`,
+              position: isLaptop ? 4 : 3,
             },
           ]
         : [
             {
-              label: "Bảo hành",
+              name: "Bảo hành",
               value: `${faker.number.int({ min: 6, max: 24 })} tháng`,
+              position: 0,
             },
           ],
       // Ảnh mẫu tĩnh trong /public để xem được bố cục gallery khi chưa có backend
