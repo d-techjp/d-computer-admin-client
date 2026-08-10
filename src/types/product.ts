@@ -58,6 +58,7 @@ export interface Product {
    * `GET /products/:id` mới trả đầy đủ.
    */
   variants: ProductVariant[];
+  variantCount: number;
   /** Chỉ có ở response chi tiết */
   options: ProductOption[];
   /**

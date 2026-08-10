@@ -433,7 +433,7 @@ export default function ProductsPage() {
                   {record.hasVariants ? (
                     <span className="inline-flex items-center gap-1">
                       <Layers size={12} />
-                      {formatNumber(record.variants.length || 0)} phiên bản
+                      {formatNumber(record.variantCount || 0)} phiên bản
                     </span>
                   ) : (
                     (defaultVariant?.sku ?? "—")

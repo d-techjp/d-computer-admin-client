@@ -113,6 +113,7 @@ export function toProduct(value: unknown): Product {
     brandId: asString(record.brandId ?? brand.id),
     brandName: asString(record.brandName ?? brand.name),
     variants: asArray(record.variants).map(toVariant),
+    variantCount: asNumber(record.variantCount),
     options: asArray(record.options).map(toOption),
     description: asOptionalString(record.description),
     createdAt: asIsoDate(record.createdAt ?? record.created_at),

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { App, Button, Input, InputNumber, Radio, Tooltip } from "antd";
-import { Info, Plus, Trash2 } from "lucide-react";
+import { GripVertical, Info, Plus, Trash2 } from "lucide-react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 
 import {
@@ -24,6 +24,7 @@ import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { loadCatalogOptions } from "@/lib/api/catalog";
 import type { ImageInput } from "@/lib/api/formData";
 import { createProduct, updateProductDescription } from "@/lib/api/products";
+import { uploadImage } from "@/lib/api/uploads";
 import type { VariantPayload } from "@/lib/api/variants";
 import { cn, formatCurrency } from "@/lib/utils";
 import type { SelectOption } from "@/types/common";
@@ -49,6 +50,8 @@ interface VariantRow {
   costPrice?: number;
   stock?: number;
   lowStockThreshold?: number;
+  /** Ảnh riêng của phiên bản này — bỏ trống thì dùng ảnh sản phẩm */
+  images: UploadedImage[];
 }
 
 interface ProductCreateFormValues {
@@ -76,13 +79,22 @@ const EMPTY_VARIANT: VariantRow = {
   costPrice: undefined,
   stock: 0,
   lowStockThreshold: 5,
+  images: [],
 };
 
 const BUNDLE_POLICIES: BundleInventoryPolicy[] = ["derived_from_components", "own_stock"];
 
-// Tên phiên bản | SKU | Giá | Giá so sánh | Giá vốn | Tồn | Ngưỡng | Mặc định | Xoá
+// Kéo | Tên phiên bản | SKU | Giá | Giá so sánh | Giá vốn | Tồn | Ngưỡng | Mặc định | Xoá
 const VARIANT_GRID =
-  "grid grid-cols-[minmax(140px,1.4fr)_minmax(140px,1.2fr)_repeat(3,minmax(110px,1fr))_repeat(2,minmax(90px,0.8fr))_64px_40px] items-start gap-2";
+  "grid grid-cols-[28px_minmax(140px,1.4fr)_minmax(140px,1.2fr)_repeat(3,minmax(110px,1fr))_repeat(2,minmax(90px,0.8fr))_64px_40px] items-start gap-2";
+
+/** Vị trí `index` sau khi phần tử ở `from` được dời sang `to` (kiểu `Array.splice` 2 lần) */
+function remapIndexAfterMove(index: number, from: number, to: number) {
+  if (index === from) return to;
+  if (from < to && index > from && index <= to) return index - 1;
+  if (from > to && index >= to && index < from) return index + 1;
+  return index;
+}
 
 function defaultValues(productType: ProductType): ProductCreateFormValues {
   return {
@@ -135,7 +147,8 @@ export function ProductCreateForm({ productType }: { productType: ProductType })
 
   useUnsavedChangesGuard(formState.isDirty && !submitting);
 
-  const { fields, append, remove } = useFieldArray({ control, name: "variants" });
+  const { fields, append, remove, move } = useFieldArray({ control, name: "variants" });
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   const [multiVariant, defaultVariantIndex, bundlePolicy] = useWatch({
     control,
@@ -176,18 +189,34 @@ export function ProductCreateForm({ productType }: { productType: ProductType })
 
     setSubmitting(true);
     try {
-      const variants: VariantPayload[] = rows.map((row, index) => ({
-        name: row.name.trim() || undefined,
-        sku: row.sku.trim(),
-        price: row.price,
-        compareAtPrice: row.compareAtPrice,
-        costPrice: row.costPrice,
-        stock: showStockFields ? (row.stock ?? 0) : undefined,
-        lowStockThreshold: showStockFields ? row.lowStockThreshold : undefined,
-        isDefault: index === defaultIndex,
-        trackInventory: isService ? false : undefined,
-        bundleInventoryPolicy: isBundle ? values.bundleInventoryPolicy : undefined,
-      }));
+      // `POST /products` nhét `variants` vào 1 field JSON của multipart nên
+      // không nhận file trực tiếp — ảnh mới chọn phải upload lấy URL trước.
+      const variantImageUrls = await Promise.all(
+        rows.map((row) =>
+          Promise.all(
+            row.images.map((image) => (image.file ? uploadImage(image.file, "products") : image.url)),
+          ),
+        ),
+      );
+
+      const variants: VariantPayload[] = rows.map((row, index) => {
+        const [thumbnail, ...images] = variantImageUrls[index];
+        return {
+          name: row.name.trim() || undefined,
+          sku: row.sku.trim(),
+          price: row.price,
+          compareAtPrice: row.compareAtPrice,
+          costPrice: row.costPrice,
+          stock: showStockFields ? (row.stock ?? 0) : undefined,
+          lowStockThreshold: showStockFields ? row.lowStockThreshold : undefined,
+          isDefault: index === defaultIndex,
+          trackInventory: isService ? false : undefined,
+          bundleInventoryPolicy: isBundle ? values.bundleInventoryPolicy : undefined,
+          position: index,
+          thumbnail,
+          images: images.length ? images : undefined,
+        };
+      });
 
       const product = await createProduct(
         {
@@ -451,6 +480,7 @@ export function ProductCreateForm({ productType }: { productType: ProductType })
           <div className="overflow-x-auto">
             <div className="min-w-260 space-y-2">
               <div className={cn(VARIANT_GRID, "text-muted text-xs font-medium")}>
+                <span />
                 <span>Tên phiên bản</span>
                 <span>
                   Mã SKU <span className="text-danger">*</span>
@@ -467,100 +497,140 @@ export function ProductCreateForm({ productType }: { productType: ProductType })
               </div>
 
               {fields.map((row, index) => (
-                <div key={row.id} className={VARIANT_GRID}>
-                  <Controller
-                    control={control}
-                    name={`variants.${index}.name`}
-                    render={({ field }) => (
-                      <Input {...field} disabled={submitting} placeholder="VD: 16GB / 512GB" />
-                    )}
-                  />
-                  <Controller
-                    control={control}
-                    name={`variants.${index}.sku`}
-                    rules={{ required: true }}
-                    render={({ field, fieldState }) => (
-                      <Input
-                        {...field}
-                        disabled={submitting}
-                        status={fieldState.error ? "error" : undefined}
-                        placeholder="VD: ASU-16-512"
-                      />
-                    )}
-                  />
-                  <Controller
-                    control={control}
-                    name={`variants.${index}.price`}
-                    rules={{ required: true, min: 0 }}
-                    render={({ field, fieldState }) => (
-                      <InputNumber
-                        {...field}
-                        disabled={submitting}
-                        status={fieldState.error ? "error" : undefined}
-                        min={0}
-                        step={1000}
-                        className="w-full"
-                      />
-                    )}
-                  />
-                  <Controller
-                    control={control}
-                    name={`variants.${index}.compareAtPrice`}
-                    render={({ field }) => (
-                      <InputNumber {...field} disabled={submitting} min={0} step={1000} className="w-full" />
-                    )}
-                  />
-                  <Controller
-                    control={control}
-                    name={`variants.${index}.costPrice`}
-                    render={({ field }) => (
-                      <InputNumber {...field} disabled={submitting} min={0} step={1000} className="w-full" />
-                    )}
-                  />
-                  <Controller
-                    control={control}
-                    name={`variants.${index}.stock`}
-                    render={({ field }) => (
-                      <InputNumber {...field} disabled={submitting} min={0} className="w-full" />
-                    )}
-                  />
-                  <Controller
-                    control={control}
-                    name={`variants.${index}.lowStockThreshold`}
-                    render={({ field }) => (
-                      <InputNumber {...field} disabled={submitting} min={0} className="w-full" />
-                    )}
-                  />
-                  <div className="flex h-8 items-center justify-center">
+                <div
+                  key={row.id}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    if (dragIndex !== null && dragIndex !== index) {
+                      move(dragIndex, index);
+                      setValue(
+                        "defaultVariantIndex",
+                        remapIndexAfterMove(defaultVariantIndex, dragIndex, index),
+                      );
+                    }
+                    setDragIndex(null);
+                  }}
+                  className={cn(
+                    "border-line space-y-2 rounded-md border p-2 transition-opacity",
+                    dragIndex === index && "opacity-40",
+                  )}
+                >
+                  <div className={VARIANT_GRID}>
+                    <div
+                      draggable={!submitting}
+                      onDragStart={() => setDragIndex(index)}
+                      onDragEnd={() => setDragIndex(null)}
+                      className={cn(
+                        "text-muted flex h-8 items-center justify-center",
+                        !submitting && "cursor-grab active:cursor-grabbing",
+                      )}
+                      aria-label={`Kéo để đổi vị trí phiên bản ${index + 1}`}
+                    >
+                      <GripVertical size={16} />
+                    </div>
                     <Controller
                       control={control}
-                      name="defaultVariantIndex"
+                      name={`variants.${index}.name`}
                       render={({ field }) => (
-                        <Radio
-                          checked={field.value === index}
-                          onChange={() => field.onChange(index)}
+                        <Input {...field} disabled={submitting} placeholder="VD: 16GB / 512GB" />
+                      )}
+                    />
+                    <Controller
+                      control={control}
+                      name={`variants.${index}.sku`}
+                      rules={{ required: true }}
+                      render={({ field, fieldState }) => (
+                        <Input
+                          {...field}
                           disabled={submitting}
-                          aria-label={`Đặt phiên bản ${index + 1} làm mặc định`}
+                          status={fieldState.error ? "error" : undefined}
+                          placeholder="VD: ASU-16-512"
                         />
                       )}
                     />
-                  </div>
-                  <Tooltip title={fields.length === 1 ? "Phải có ít nhất một phiên bản" : "Xoá"}>
-                    <Button
-                      type="text"
-                      danger
-                      disabled={submitting || fields.length === 1}
-                      icon={<Trash2 size={16} />}
-                      onClick={() => {
-                        remove(index);
-                        // Xoá đúng dòng đang là mặc định thì đẩy về dòng đầu
-                        if (defaultVariantIndex >= index && defaultVariantIndex > 0) {
-                          setValue("defaultVariantIndex", defaultVariantIndex - 1);
-                        }
-                      }}
-                      aria-label={`Xoá phiên bản ${index + 1}`}
+                    <Controller
+                      control={control}
+                      name={`variants.${index}.price`}
+                      rules={{ required: true, min: 0 }}
+                      render={({ field, fieldState }) => (
+                        <InputNumber
+                          {...field}
+                          disabled={submitting}
+                          status={fieldState.error ? "error" : undefined}
+                          min={0}
+                          step={1000}
+                          className="w-full"
+                        />
+                      )}
                     />
-                  </Tooltip>
+                    <Controller
+                      control={control}
+                      name={`variants.${index}.compareAtPrice`}
+                      render={({ field }) => (
+                        <InputNumber {...field} disabled={submitting} min={0} step={1000} className="w-full" />
+                      )}
+                    />
+                    <Controller
+                      control={control}
+                      name={`variants.${index}.costPrice`}
+                      render={({ field }) => (
+                        <InputNumber {...field} disabled={submitting} min={0} step={1000} className="w-full" />
+                      )}
+                    />
+                    <Controller
+                      control={control}
+                      name={`variants.${index}.stock`}
+                      render={({ field }) => (
+                        <InputNumber {...field} disabled={submitting} min={0} className="w-full" />
+                      )}
+                    />
+                    <Controller
+                      control={control}
+                      name={`variants.${index}.lowStockThreshold`}
+                      render={({ field }) => (
+                        <InputNumber {...field} disabled={submitting} min={0} className="w-full" />
+                      )}
+                    />
+                    <div className="flex h-8 items-center justify-center">
+                      <Controller
+                        control={control}
+                        name="defaultVariantIndex"
+                        render={({ field }) => (
+                          <Radio
+                            checked={field.value === index}
+                            onChange={() => field.onChange(index)}
+                            disabled={submitting}
+                            aria-label={`Đặt phiên bản ${index + 1} làm mặc định`}
+                          />
+                        )}
+                      />
+                    </div>
+                    <Tooltip title={fields.length === 1 ? "Phải có ít nhất một phiên bản" : "Xoá"}>
+                      <Button
+                        type="text"
+                        danger
+                        disabled={submitting || fields.length === 1}
+                        icon={<Trash2 size={16} />}
+                        onClick={() => {
+                          remove(index);
+                          // Xoá đúng dòng đang là mặc định thì đẩy về dòng đầu
+                          if (defaultVariantIndex >= index && defaultVariantIndex > 0) {
+                            setValue("defaultVariantIndex", defaultVariantIndex - 1);
+                          }
+                        }}
+                        aria-label={`Xoá phiên bản ${index + 1}`}
+                      />
+                    </Tooltip>
+                  </div>
+
+                  <ImageUploadField
+                    name={`variants.${index}.images`}
+                    control={control}
+                    maxCount={4}
+                    disabled={submitting}
+                    helpText="Ảnh riêng cho phiên bản này — bỏ trống thì dùng ảnh sản phẩm."
+                  />
                 </div>
               ))}
             </div>

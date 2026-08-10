@@ -154,6 +154,8 @@ export interface VariantPayload {
   bundleInventoryPolicy?: BundleInventoryPolicy;
   /** Chỉ dùng khi TẠO — `PATCH /variants/:id` không nhận trường này */
   optionValueIds?: string[];
+  thumbnail?: string;
+  images?: string[];
 }
 
 export interface OptionInput {

@@ -11,6 +11,29 @@ import "@ant-design/v5-patch-for-react-19";
 import { getAntdTheme } from "@/lib/antd-theme";
 import { useThemeStore } from "@/store/useThemeStore";
 
+// Warning cleanup-after-unmount của @ant-design/cssinjs — antd v5 chưa native
+// React 19, chỉ là console noise (issue antd đã đóng "invalid", xem
+// https://github.com/ant-design/ant-design/issues/55037). Lọc đúng câu này,
+// không đụng các console.error khác. Guard `window` vì providers.tsx chạy cả
+// ở server lúc SSR — override console.error ở Node sẽ rò rỉ sang mọi request
+// khác trong cùng process, không chỉ ảnh hưởng trình duyệt.
+if (
+  typeof window !== "undefined" &&
+  !(window as { __antdCleanupWarningPatched?: boolean }).__antdCleanupWarningPatched
+) {
+  (window as { __antdCleanupWarningPatched?: boolean }).__antdCleanupWarningPatched = true;
+  const originalConsoleError = console.error;
+  console.error = (...args: unknown[]) => {
+    if (
+      typeof args[0] === "string" &&
+      args[0].includes("You are registering a cleanup function after unmount")
+    ) {
+      return;
+    }
+    originalConsoleError(...args);
+  };
+}
+
 dayjs.locale("vi");
 
 /**
