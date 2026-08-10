@@ -63,6 +63,10 @@ function toDraft(variant: ProductVariant): VariantDraft {
   };
 }
 
+function toDraftMap(variants: ProductVariant[]) {
+  return Object.fromEntries(variants.map((item) => [item.id, toDraft(item)]));
+}
+
 /** Chỉ gửi trường thực sự đổi để PATCH không ghi đè thứ người khác vừa sửa */
 function diffDraft(variant: ProductVariant, draft: VariantDraft): VariantPayload {
   const payload: VariantPayload = {};
@@ -106,7 +110,9 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
   const { message } = App.useApp();
   const { has } = usePermissions();
   const [variants, setVariants] = useState<ProductVariant[]>(product.variants);
-  const [drafts, setDrafts] = useState<Record<string, VariantDraft>>({});
+  const [drafts, setDrafts] = useState<Record<string, VariantDraft>>(() =>
+    toDraftMap(product.variants),
+  );
   const [savingIds, setSavingIds] = useState<string[]>([]);
   const [failedIds, setFailedIds] = useState<string[]>([]);
   const [savingAll, setSavingAll] = useState(false);
@@ -122,14 +128,13 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
   const hasOptions = product.options.length > 0;
 
   // Đồng bộ lại khi tab cha nạp lại sản phẩm (sinh biến thể, đổi option...).
-  // Chỉnh state ngay trong lúc render thay vì trong effect: React xử lý xong
-  // vòng render này rồi mới vẽ, nên không có nhấp nháy và không đẻ thêm một
-  // lượt render thừa như khi dùng useEffect.
+  // Chỉnh state ngay trong lúc render theo guard tham chiếu để tránh effect
+  // cascade, đồng thời drafts đã được khởi tạo đầy đủ ngay từ render đầu tiên.
   const [syncedVariants, setSyncedVariants] = useState(product.variants);
   if (syncedVariants !== product.variants) {
     setSyncedVariants(product.variants);
     setVariants(product.variants);
-    setDrafts(Object.fromEntries(product.variants.map((item) => [item.id, toDraft(item)])));
+    setDrafts(toDraftMap(product.variants));
     setFailedIds([]);
   }
 
@@ -341,7 +346,7 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
                   icon={<RotateCcw size={16} />}
                   disabled={savingAll}
                   onClick={() => {
-                    setDrafts(Object.fromEntries(variants.map((item) => [item.id, toDraft(item)])));
+                    setDrafts(toDraftMap(variants));
                     // Huỷ luôn kéo-thả chưa lưu — trả mảng về đúng thứ tự đã
                     // cam kết (`position` hiện có, chưa bị đổi vì chưa lưu).
                     applyVariants([...variants].sort((a, b) => a.position - b.position));
