@@ -87,7 +87,7 @@ export function listPosts(params: ListPostsParams) {
     tag: params.tag,
   };
 
-  return apiFetch<unknown>("/articles/manage", { query }).then((payload) =>
+  return apiFetch<unknown>("/articles", { query }).then((payload) =>
     parseListResponse(payload, toPost, { page: params.page, pageSize: params.limit }),
   );
 }
