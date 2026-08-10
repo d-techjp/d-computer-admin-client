@@ -13,7 +13,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 ENV NEXT_PUBLIC_API_BASE_URL=/api/v1/admin
-ENV NEXT_PUBLIC_SITE_URL=http://localhost:4000
+ENV NEXT_PUBLIC_SITE_URL=https://d-techjp.com
 
 RUN npm run build
 
