@@ -29,8 +29,8 @@ export interface UploadedImage {
 }
 
 interface ImageUploadFieldProps<T extends FieldValues> extends BaseFieldProps<T> {
-  /** Số ảnh tối đa; đặt 1 cho ảnh bìa đơn lẻ */
   maxCount?: number;
+  minCount?: number;
 }
 
 /**
@@ -51,6 +51,7 @@ export function ImageUploadField<T extends FieldValues>({
   disabled,
   className,
   maxCount = 6,
+  minCount = 0,
 }: ImageUploadFieldProps<T>) {
   const { message, modal } = App.useApp();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -98,6 +99,13 @@ export function ImageUploadField<T extends FieldValues>({
 
   const removeAt = (index: number) =>
     field.onChange(images.filter((_, i) => i !== index));
+
+  /**
+   * Sàn tính trên **cả** ảnh cũ lẫn ảnh mới chưa lưu: thêm 1 ảnh rồi xoá ảnh
+   * cũ là thao tác thay ảnh hợp lệ, nhưng xoá tiếp tấm còn lại thì danh sách
+   * rỗng — trạng thái mà backend không lưu được.
+   */
+  const canRemove = images.length > minCount;
 
   const confirmRemoveAt = (index: number) => {
     modal.confirm({
@@ -207,16 +215,25 @@ export function ImageUploadField<T extends FieldValues>({
                     {index + 1}/{images.length}
                   </span>
 
-                  <Tooltip title="Xoá ảnh">
-                    <Button
-                      size="small"
-                      type="text"
-                      danger
-                      disabled={disabled}
-                      aria-label="Xoá ảnh"
-                      icon={<Trash2 size={15} />}
-                      onClick={() => confirmRemoveAt(index)}
-                    />
+                  <Tooltip
+                    title={
+                      canRemove
+                        ? "Xoá ảnh"
+                        : `Phải giữ lại ít nhất ${minCount} ảnh — thêm ảnh mới trước rồi mới xoá ảnh này`
+                    }
+                  >
+                    {/* span để tooltip vẫn hiện khi nút bị disable */}
+                    <span className="inline-flex">
+                      <Button
+                        size="small"
+                        type="text"
+                        danger
+                        disabled={disabled || !canRemove}
+                        aria-label="Xoá ảnh"
+                        icon={<Trash2 size={15} />}
+                        onClick={() => confirmRemoveAt(index)}
+                      />
+                    </span>
                   </Tooltip>
                 </figcaption>
               </figure>

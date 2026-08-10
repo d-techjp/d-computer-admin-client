@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { App, Button } from "antd";
 import { useForm } from "react-hook-form";
 
@@ -66,9 +67,12 @@ function toImageInputs(images: UploadedImage[]): ImageInput[] {
 export function GeneralTab({
   product,
   onSaved,
+  actionsSlot,
 }: {
   product: Product;
   onSaved: (product: Product) => void;
+  /** Chỗ đặt nút Khôi phục / Lưu ở header trang (xem `ProductWorkspace`) */
+  actionsSlot?: HTMLElement | null;
 }) {
   const { message } = App.useApp();
   const [submitting, setSubmitting] = useState(false);
@@ -133,8 +137,38 @@ export function GeneralTab({
     }
   });
 
+  // Ảnh đang có trên server — `product` được thay mới sau mỗi lần lưu nên số
+  // này tự đúng lại khi sản phẩm vừa được thêm ảnh lần đầu.
+  const savedImageCount = productImagesOf(product).length;
+
+  // Form dài hơn một màn hình nên nút Lưu được đẩy lên header trang, cạnh nút
+  // "Xoá sản phẩm"; thuộc tính `form` giữ được `htmlType="submit"` dù nút nằm
+  // ngoài thẻ <form> sau khi portal.
+  const formId = `product-general-${product.id}`;
+  const actions = (
+    <>
+      <Button
+        onClick={() => reset(toFormValues(product))}
+        disabled={submitting || !formState.isDirty}
+      >
+        Khôi phục
+      </Button>
+      <Button
+        type="primary"
+        htmlType="submit"
+        form={formId}
+        loading={submitting}
+        disabled={!formState.isDirty}
+      >
+        Lưu thay đổi
+      </Button>
+    </>
+  );
+
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form id={formId} onSubmit={onSubmit} className="space-y-4">
+      {actionsSlot && createPortal(actions, actionsSlot)}
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           <section className="bg-card border-line shadow-card space-y-4 rounded-lg border p-4">
@@ -205,20 +239,23 @@ export function GeneralTab({
             name="images"
             control={control}
             maxCount={8}
+            // Sàn suy từ ảnh đang có trên server, không suy từ danh sách đang
+            // sửa: sản phẩm đã có ảnh thì backend không đưa về "không ảnh" được
+            // nữa, còn sản phẩm chưa có ảnh thì ảnh vừa thêm phải gỡ ra được.
+            minCount={savedImageCount ? 1 : 0}
             disabled={submitting}
-            helpText="Ảnh đầu tiên là ảnh đại diện. Biến thể có thể dùng ảnh riêng."
+            helpText={
+              savedImageCount
+                ? "Ảnh đầu tiên là ảnh đại diện, phải giữ lại ít nhất 1 ảnh. Biến thể có thể dùng ảnh riêng."
+                : "Ảnh đầu tiên là ảnh đại diện. Biến thể có thể dùng ảnh riêng."
+            }
           />
         </section>
       </div>
 
-      <div className="flex justify-end gap-2">
-        <Button onClick={() => reset(toFormValues(product))} disabled={submitting || !formState.isDirty}>
-          Khôi phục
-        </Button>
-        <Button type="primary" htmlType="submit" loading={submitting} disabled={!formState.isDirty}>
-          Lưu thay đổi
-        </Button>
-      </div>
+      {/* Chưa có chỗ ở header (tab chưa active / slot chưa mount) thì giữ nguyên
+          hàng nút cuối form để không bao giờ mất đường lưu. */}
+      {!actionsSlot && <div className="flex justify-end gap-2">{actions}</div>}
     </form>
   );
 }

@@ -48,9 +48,10 @@ interface VariantImagesModalProps {
  * dạng URL có sẵn, không nhận file — nên ảnh riêng luôn là thao tác bước hai,
  * sau khi biến thể đã tồn tại. Vì vậy modal này chỉ có ở màn sửa sản phẩm.
  *
- * Ảnh đầu tiên trong danh sách là ảnh đại diện của biến thể; không gửi gì thì
- * backend giữ nguyên ảnh cũ — **không có cách xoá hết ảnh riêng** để quay về
- * dùng ảnh sản phẩm (giới hạn hiện tại của backend), nên nút Lưu bị khoá khi
+ * Ảnh đầu tiên trong danh sách là ảnh đại diện của biến thể; không gửi
+ * `thumbnail` thì backend giữ nguyên ảnh cũ — **không có cách xoá hết ảnh
+ * riêng** để quay về dùng ảnh sản phẩm (giới hạn hiện tại của backend). Vì vậy
+ * ảnh đã lưu chỉ xoá được khi còn ảnh khác thay thế, và nút Lưu bị khoá khi
  * danh sách rỗng thay vì âm thầm gửi một request không có tác dụng gì.
  */
 export function VariantImagesModal({
@@ -110,6 +111,15 @@ export function VariantImagesModal({
   };
 
   const removeAt = (index: number) => setImages((current) => current.filter((_, i) => i !== index));
+
+  /**
+   * Biến thể đã có ảnh riêng thì danh sách không được về rỗng — backend không
+   * nhận "xoá sạch ảnh riêng", xoá hết rồi lưu thì ảnh cũ vẫn nguyên đó. Sàn
+   * suy từ `variant` (dữ liệu server) chứ không từ `images` đang sửa: thêm ảnh
+   * mới rồi xoá ảnh cũ là thay ảnh hợp lệ, nhưng tấm cuối vẫn phải ở lại.
+   */
+  const minImages = variant?.thumbnail || variant?.images.length ? 1 : 0;
+  const canRemove = images.length > minImages;
 
   const onSave = async () => {
     if (!variant || images.length === 0) return;
@@ -209,15 +219,25 @@ export function VariantImagesModal({
                         }
                       />
                     </Tooltip>
-                    <Tooltip title="Xoá khỏi biến thể này">
-                      <Button
-                        size="small"
-                        type="text"
-                        danger
-                        aria-label="Xoá ảnh"
-                        icon={<Trash2 size={13} />}
-                        onClick={() => removeAt(index)}
-                      />
+                    <Tooltip
+                      title={
+                        canRemove
+                          ? "Xoá khỏi biến thể này"
+                          : "Phải giữ lại ít nhất 1 ảnh — thêm ảnh mới trước rồi mới xoá ảnh này"
+                      }
+                    >
+                      {/* span để tooltip vẫn hiện khi nút bị disable */}
+                      <span className="inline-flex">
+                        <Button
+                          size="small"
+                          type="text"
+                          danger
+                          disabled={!canRemove}
+                          aria-label="Xoá ảnh"
+                          icon={<Trash2 size={13} />}
+                          onClick={() => removeAt(index)}
+                        />
+                      </span>
                     </Tooltip>
                   </figcaption>
                 </figure>
