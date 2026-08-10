@@ -41,6 +41,8 @@ interface VariantDraft {
   compareAtPrice?: number;
   costPrice?: number;
   lowStockThreshold?: number;
+  isDefault: boolean;
+  isActive: boolean;
 }
 
 // Kéo | Ảnh | Tên | SKU | Giá | So sánh | Vốn | Tồn | Ngưỡng | Mặc định | Bật | Xoá
@@ -60,7 +62,13 @@ function toDraft(variant: ProductVariant): VariantDraft {
     compareAtPrice: variant.compareAtPrice,
     costPrice: variant.costPrice,
     lowStockThreshold: variant.lowStockThreshold,
+    isDefault: variant.isDefault,
+    isActive: variant.isActive,
   };
+}
+
+function toDraftMap(variants: ProductVariant[]) {
+  return Object.fromEntries(variants.map((item) => [item.id, toDraft(item)]));
 }
 
 /** Chỉ gửi trường thực sự đổi để PATCH không ghi đè thứ người khác vừa sửa */
@@ -76,6 +84,12 @@ function diffDraft(variant: ProductVariant, draft: VariantDraft): VariantPayload
   if (draft.lowStockThreshold !== variant.lowStockThreshold) {
     payload.lowStockThreshold = draft.lowStockThreshold;
   }
+  if (draft.isActive !== variant.isActive) payload.isActive = draft.isActive;
+  // Cờ mặc định chỉ gửi khi dòng này *trở thành* mặc định: backend tự gỡ cờ ở
+  // mọi dòng còn lại (`clearDefaultFlag`) khi thấy `isDefault: true`. Gửi kèm
+  // `isDefault: false` cho dòng cũ là tự bắn vào chân — request chỉ chứa mỗi
+  // dòng đó sẽ để sản phẩm không còn phiên bản mặc định nào.
+  if (draft.isDefault && !variant.isDefault) payload.isDefault = true;
   return payload;
 }
 
@@ -94,9 +108,10 @@ interface VariantsTabProps {
  * của product-creation-flows-3.md), một request/transaction. Ảnh riêng của
  * biến thể vẫn đi qua `PATCH /variants/{id}` (multipart) — bulk không nhận file.
  *
- * Kéo-thả đổi vị trí **không** gọi API ngay — nó chỉ là một thay đổi cục bộ
- * như mọi ô nhập khác trên bảng, tích luỹ tới khi người dùng bấm "Lưu N thay
- * đổi" mới gộp chung 1 request bulk (xem `reorderVariant`/`dirtyIds`).
+ * Kéo-thả đổi vị trí, cờ mặc định và công tắc đang bán **không** gọi API ngay —
+ * tất cả chỉ là thay đổi cục bộ như mọi ô nhập khác trên bảng, tích luỹ tới khi
+ * người dùng bấm "Lưu N thay đổi" mới gộp chung 1 request bulk (xem
+ * `reorderVariant`/`setDefault`/`toggleActive`/`dirtyIds`).
  *
  * Tồn kho cố tình **không sửa trực tiếp** ở đây: nó đi qua modal điều chỉnh
  * (`PATCH /variants/{id}/stock`) để có `delta` + lý do vào nhật ký, và vì thao
@@ -106,7 +121,9 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
   const { message } = App.useApp();
   const { has } = usePermissions();
   const [variants, setVariants] = useState<ProductVariant[]>(product.variants);
-  const [drafts, setDrafts] = useState<Record<string, VariantDraft>>({});
+  const [drafts, setDrafts] = useState<Record<string, VariantDraft>>(() =>
+    toDraftMap(product.variants),
+  );
   const [savingIds, setSavingIds] = useState<string[]>([]);
   const [failedIds, setFailedIds] = useState<string[]>([]);
   const [savingAll, setSavingAll] = useState(false);
@@ -122,14 +139,13 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
   const hasOptions = product.options.length > 0;
 
   // Đồng bộ lại khi tab cha nạp lại sản phẩm (sinh biến thể, đổi option...).
-  // Chỉnh state ngay trong lúc render thay vì trong effect: React xử lý xong
-  // vòng render này rồi mới vẽ, nên không có nhấp nháy và không đẻ thêm một
-  // lượt render thừa như khi dùng useEffect.
+  // Chỉnh state ngay trong lúc render theo guard tham chiếu để tránh effect
+  // cascade, đồng thời drafts đã được khởi tạo đầy đủ ngay từ render đầu tiên.
   const [syncedVariants, setSyncedVariants] = useState(product.variants);
   if (syncedVariants !== product.variants) {
     setSyncedVariants(product.variants);
     setVariants(product.variants);
-    setDrafts(Object.fromEntries(product.variants.map((item) => [item.id, toDraft(item)])));
+    setDrafts(toDraftMap(product.variants));
     setFailedIds([]);
   }
 
@@ -151,6 +167,23 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
   };
 
   /**
+   * Đồng bộ `drafts` theo response cho **đúng những dòng vừa gửi**, để không
+   * đè mất nội dung đang gõ dở ở các dòng khác chưa lưu.
+   */
+  const syncDrafts = (updated: ProductVariant[], ids: string[]) => {
+    if (ids.length === 0) return;
+    const byId = new Map(updated.map((item) => [item.id, item]));
+    setDrafts((current) => {
+      const next = { ...current };
+      for (const id of ids) {
+        const item = byId.get(id);
+        if (item) next[id] = toDraft(item);
+      }
+      return next;
+    });
+  };
+
+  /**
    * Áp kết quả `bulkUpdateVariants` — response là TOÀN BỘ biến thể của sản
    * phẩm (mục 4.2) nên thay thẳng `variants`, không cần merge tay như trước.
    * `drafts` chỉ đồng bộ cho những dòng vừa gửi trong request, để không đè
@@ -158,16 +191,7 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
    */
   const applyBulkVariants = (updated: ProductVariant[], syncDraftIds: string[] = []) => {
     applyVariants(updated);
-    if (syncDraftIds.length === 0) return;
-    const byId = new Map(updated.map((item) => [item.id, item]));
-    setDrafts((current) => {
-      const next = { ...current };
-      for (const id of syncDraftIds) {
-        const item = byId.get(id);
-        if (item) next[id] = toDraft(item);
-      }
-      return next;
-    });
+    syncDrafts(updated, syncDraftIds);
   };
 
   const patchDraft = (id: string, patch: Partial<VariantDraft>) => {
@@ -203,24 +227,44 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
     const payload = diffDraft(variant, draft);
     if (!isDirty(payload)) return true;
 
-    setSavingIds((current) => [...current, variant.id]);
+    // Chuyển mặc định là thao tác đôi: dòng này nhả cờ, dòng kia nhận. Gửi lẻ
+    // vế nhả thì request không có `isDefault: true` nào để backend gỡ cờ cũ —
+    // cờ sẽ nằm lại ở phiên bản vừa ngừng bán. Kèm luôn vế nhận vào cùng
+    // request để hai vế không bao giờ rời nhau.
+    const receiver =
+      variant.isDefault && !draft.isDefault
+        ? variants.find((item) => !item.isDefault && drafts[item.id]?.isDefault)
+        : undefined;
+
+    const items: BulkVariantUpdateItem[] = [{ id: variant.id, ...payload }];
+    if (receiver) items.push({ id: receiver.id, isDefault: true });
+    const itemIds = items.map((item) => item.id);
+
+    setSavingIds((current) => [...current, ...itemIds]);
     try {
-      const updated = await bulkUpdateVariants(product.id, [{ id: variant.id, ...payload }]);
-      const fresh = updated.find((item) => item.id === variant.id) ?? { ...variant, ...payload };
+      const updated = await bulkUpdateVariants(product.id, items);
+      const byId = new Map(updated.map((item) => [item.id, item]));
+      const becameDefault = items.some((item) => item.isDefault === true);
       // Giữ nguyên thứ tự mảng hiện tại (có thể đang có kéo-thả chưa lưu ở
-      // dòng khác) — chỉ thay dữ liệu của đúng dòng vừa lưu.
-      replaceVariant(fresh);
-      setFailedIds((current) => current.filter((id) => id !== variant.id));
+      // dòng khác) — chỉ thay dữ liệu của những dòng vừa gửi. Các dòng còn lại
+      // chỉ đồng bộ cờ mặc định mà backend vừa gỡ.
+      const next = variants.map((item) => {
+        if (itemIds.includes(item.id)) return byId.get(item.id) ?? { ...item, ...payload };
+        return becameDefault && item.isDefault ? { ...item, isDefault: false } : item;
+      });
+      applyVariants(next);
+      syncDrafts(updated, itemIds);
+      setFailedIds((current) => current.filter((id) => !itemIds.includes(id)));
       if (!silent) message.success(`Đã lưu ${draft.sku}`);
       return true;
     } catch (error) {
-      setFailedIds((current) => (current.includes(variant.id) ? current : [...current, variant.id]));
+      setFailedIds((current) => [...new Set([...current, ...itemIds])]);
       if (!silent) {
         message.error(error instanceof Error ? error.message : "Không lưu được biến thể");
       }
       return false;
     } finally {
-      setSavingIds((current) => current.filter((id) => id !== variant.id));
+      setSavingIds((current) => current.filter((id) => !itemIds.includes(id)));
     }
   };
 
@@ -258,25 +302,58 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
     }
   };
 
-  /** Bật/tắt và đặt mặc định lưu ngay — không có gì để "soạn dở" ở hai công tắc này */
-  const toggleField = async (variant: ProductVariant, patch: VariantPayload) => {
-    setSavingIds((current) => [...current, variant.id]);
-    try {
-      const updated = await bulkUpdateVariants(product.id, [{ id: variant.id, ...patch }]);
-      const fresh = updated.find((item) => item.id === variant.id) ?? { ...variant, ...patch };
-      // Giữ nguyên thứ tự mảng hiện tại (không thay toàn bộ bằng response) để
-      // không mất kéo-thả chưa lưu của các dòng khác. Đặt mặc định là thao
-      // tác độc quyền nên vẫn phải tự bỏ cờ dòng khác cục bộ.
-      const next = variants.map((item) =>
-        item.id === fresh.id ? fresh : patch.isDefault ? { ...item, isDefault: false } : item,
-      );
-      applyVariants(next);
-      setDrafts((current) => ({ ...current, [fresh.id]: toDraft(fresh) }));
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : "Không cập nhật được biến thể");
-    } finally {
-      setSavingIds((current) => current.filter((id) => id !== variant.id));
-    }
+  /**
+   * Đặt mặc định — cục bộ, chờ "Lưu". Độc quyền nên gỡ cờ ở mọi dòng khác ngay
+   * trong draft, đúng thứ backend sẽ làm khi nhận `isDefault: true`.
+   */
+  const setDefault = (variant: ProductVariant) => {
+    setDrafts((current) =>
+      Object.fromEntries(
+        Object.entries(current).map(([id, draft]) => [
+          id,
+          draft.isDefault === (id === variant.id)
+            ? draft
+            : { ...draft, isDefault: id === variant.id },
+        ]),
+      ),
+    );
+  };
+
+  /**
+   * Bất biến: cờ mặc định phải nằm ở một phiên bản **đang bán** — mặc định trỏ
+   * vào phiên bản đã ngừng bán thì trang sản phẩm không có gì để chọn sẵn.
+   *
+   * Ngoại lệ duy nhất: không còn phiên bản nào đang bán. Lúc đó cờ ở lại đúng
+   * chỗ cũ — "ngừng bán toàn bộ phiên bản" là thao tác hợp lệ, kể cả khi cái
+   * bị tắt sau cùng chính là phiên bản mặc định.
+   */
+  const withDefaultOnSellable = (map: Record<string, VariantDraft>) => {
+    const current = variants.find((item) => map[item.id]?.isDefault);
+    if (current && map[current.id]?.isActive) return { drafts: map, movedTo: undefined };
+
+    const target = variants.find((item) => map[item.id]?.isActive);
+    if (!target || target.id === current?.id) return { drafts: map, movedTo: undefined };
+
+    return {
+      drafts: Object.fromEntries(
+        Object.entries(map).map(([id, draft]) => [
+          id,
+          draft.isDefault === (id === target.id) ? draft : { ...draft, isDefault: id === target.id },
+        ]),
+      ),
+      movedTo: target,
+    };
+  };
+
+  /** Bật/tắt bán — cục bộ, chờ "Lưu"; cờ mặc định tự đi theo bất biến ở trên. */
+  const toggleActive = (variant: ProductVariant, isActive: boolean) => {
+    const patched = { ...drafts, [variant.id]: { ...drafts[variant.id], isActive } };
+    const next = withDefaultOnSellable(patched);
+
+    setDrafts(next.drafts);
+    // Báo cho biết cờ mặc định vừa tự nhảy — thay đổi này cũng nằm trong "Lưu
+    // N thay đổi" chứ không tự gửi đi đâu cả.
+    if (next.movedTo) message.info(`Đã chuyển mặc định sang ${next.drafts[next.movedTo.id].sku}`);
   };
 
   /**
@@ -341,7 +418,7 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
                   icon={<RotateCcw size={16} />}
                   disabled={savingAll}
                   onClick={() => {
-                    setDrafts(Object.fromEntries(variants.map((item) => [item.id, toDraft(item)])));
+                    setDrafts(toDraftMap(variants));
                     // Huỷ luôn kéo-thả chưa lưu — trả mảng về đúng thứ tự đã
                     // cam kết (`position` hiện có, chưa bị đổi vì chưa lưu).
                     applyVariants([...variants].sort((a, b) => a.position - b.position));
@@ -600,20 +677,31 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
                   {/* pt-1: Radio/Switch/nút thấp hơn ô input (32px) — nhích xuống
                       một chút cho gần tâm input thay vì dính sát mép trên */}
                   <div className="flex justify-center pt-1">
-                    <Radio
-                      checked={variant.isDefault}
-                      disabled={!canManage || saving || variant.isDefault}
-                      onChange={() => toggleField(variant, { isDefault: true })}
-                      aria-label={`Đặt ${variant.sku} làm mặc định`}
-                    />
+                    <Tooltip
+                      title={
+                        draft.isActive
+                          ? undefined
+                          : "Phiên bản đang ngừng bán thì không đặt làm mặc định được"
+                      }
+                    >
+                      {/* span để tooltip vẫn hiện khi radio bị disable */}
+                      <span className="inline-flex">
+                        <Radio
+                          checked={draft.isDefault}
+                          disabled={!canManage || saving || draft.isDefault || !draft.isActive}
+                          onChange={() => setDefault(variant)}
+                          aria-label={`Đặt ${variant.sku} làm mặc định`}
+                        />
+                      </span>
+                    </Tooltip>
                   </div>
 
                   <div className="flex justify-center pt-1">
                     <Switch
                       size="small"
-                      checked={variant.isActive}
+                      checked={draft.isActive}
                       disabled={!canManage || saving}
-                      onChange={(isActive) => toggleField(variant, { isActive })}
+                      onChange={(isActive) => toggleActive(variant, isActive)}
                       aria-label={`Bật/tắt ${variant.sku}`}
                     />
                   </div>
@@ -688,7 +776,7 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
         onClose={() => setAdjustingVariant(undefined)}
         // Chỉ tin `stock` từ response của endpoint này (giá trị server tính,
         // FE không biết trước) — các trường khác giữ nguyên từ variant hiện
-        // có, cùng lý do như saveVariant/toggleField ở trên.
+        // có, cùng lý do như saveVariant ở trên.
         onAdjusted={(updated) => {
           const current = variants.find((item) => item.id === updated.id);
           replaceVariant(current ? { ...current, stock: updated.stock } : updated);

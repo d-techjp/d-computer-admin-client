@@ -44,9 +44,15 @@ export function appendFields(formData: FormData, fields: Record<string, unknown>
  * sắp xếp trong `ImageUploadField`. Ảnh đã có URL gửi lại nguyên URL, ảnh mới
  * gửi file để backend tự upload lên R2.
  *
- * Lưu ý: contract ghi rõ *"không gửi thumbnail/images thì giữ nguyên ảnh hiện
- * có"* — nghĩa là **không xoá hết ảnh được** bằng cách gửi mảng rỗng. Trường
- * hợp đó cần một API riêng từ backend.
+ * `images` **luôn được gửi**, kể cả khi rỗng: contract ghi *"không gửi
+ * thumbnail/images thì giữ nguyên ảnh hiện có"*, nên bỏ qua field khi danh
+ * sách rỗng đồng nghĩa với ảnh vừa xoá sẽ quay lại ngay sau khi lưu. Gửi dạng
+ * chuỗi JSON vì multipart không diễn đạt được "mảng rỗng" — field rỗng bị
+ * backend hiểu là `undefined`.
+ *
+ * Riêng thumbnail thì vẫn **không xoá được**: gửi chuỗi rỗng bị `@IsUrl` chặn,
+ * không gửi thì backend giữ ảnh cũ. Vì vậy form phải giữ lại ít nhất 1 ảnh
+ * (xem `minCount` của `ImageUploadField`).
  */
 export function appendImages(
   formData: FormData,
@@ -72,18 +78,23 @@ export function appendImages(
     formData.append(keys.thumbnail, thumbnail.url);
   }
 
+  const galleryUrls = gallery.flatMap((image) =>
+    !image.file && image.url ? [image.url] : [],
+  );
+  formData.append(keys.images, JSON.stringify(galleryUrls));
+
   for (const image of gallery) {
-    if (image.file) {
-      formData.append(keys.imagesFiles, image.file);
-    } else if (image.url) {
-      formData.append(keys.images, image.url);
-    }
+    if (image.file) formData.append(keys.imagesFiles, image.file);
   }
 }
 
+/**
+ * `images === undefined` = không đụng tới ảnh; mảng (kể cả rỗng) = thay thế
+ * đúng những gì được truyền vào.
+ */
 export function buildFormData(fields: Record<string, unknown>, images?: ImageInput[]) {
   const formData = new FormData();
   appendFields(formData, fields);
-  if (images?.length) appendImages(formData, images);
+  if (images) appendImages(formData, images);
   return formData;
 }

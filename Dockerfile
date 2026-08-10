@@ -12,7 +12,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-ENV NEXT_PUBLIC_API_BASE_URL=/api/v1
+ENV NEXT_PUBLIC_API_BASE_URL=/api/v1/admin
 ENV NEXT_PUBLIC_SITE_URL=http://localhost:4000
 
 RUN npm run build

@@ -42,6 +42,7 @@ export function ProductWorkspace({ productId }: { productId: string }) {
   const [product, setProduct] = useState<Product>();
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [actionsSlot, setActionsSlot] = useState<HTMLDivElement | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -104,7 +105,15 @@ export function ProductWorkspace({ productId }: { productId: string }) {
       {
         key: "general",
         label: "Thông tin chung",
-        children: <GeneralTab product={product} onSaved={setProduct} />,
+        children: (
+          <GeneralTab
+            product={product}
+            onSaved={setProduct}
+            // Tab ẩn vẫn được giữ trong DOM (`destroyOnHidden={false}`), nên chỉ
+            // tab đang mở mới được mượn chỗ trên header.
+            actionsSlot={activeTab === "general" ? actionsSlot : null}
+          />
+        ),
       },
       {
         key: "description",
@@ -138,7 +147,7 @@ export function ProductWorkspace({ productId }: { productId: string }) {
     }
 
     return items;
-  }, [applyVariants, load, product]);
+  }, [actionsSlot, activeTab, applyVariants, load, product]);
 
   if (loading) {
     return (
@@ -186,18 +195,24 @@ export function ProductWorkspace({ productId }: { productId: string }) {
             </p>
           </div>
 
-          <Popconfirm
-            title="Xoá sản phẩm này?"
-            description="Xoá mềm, kéo theo toàn bộ biến thể."
-            okText="Xoá"
-            cancelText="Huỷ"
-            okButtonProps={{ danger: true }}
-            onConfirm={handleDelete}
-          >
-            <Button danger icon={<Trash2 size={16} />}>
-              Xoá sản phẩm
-            </Button>
-          </Popconfirm>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* `contents` để nút của tab nằm thẳng hàng với nút xoá, không đội
+                thêm một lớp box rỗng khi tab không có nút nào */}
+            <div ref={setActionsSlot} className="contents" />
+
+            <Popconfirm
+              title="Xoá sản phẩm này?"
+              description="Xoá mềm, kéo theo toàn bộ biến thể."
+              okText="Xoá"
+              cancelText="Huỷ"
+              okButtonProps={{ danger: true }}
+              onConfirm={handleDelete}
+            >
+              <Button danger icon={<Trash2 size={16} />}>
+                Xoá sản phẩm
+              </Button>
+            </Popconfirm>
+          </div>
         </div>
       </div>
 

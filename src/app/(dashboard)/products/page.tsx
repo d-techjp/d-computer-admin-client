@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { App, Button, Input, Popconfirm, Select, Space, Table, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { ImageOff, Layers, Pencil, Plus, Trash2, Warehouse } from "lucide-react";
+import { ExternalLink, ImageOff, Layers, Pencil, Plus, Trash2, Warehouse } from "lucide-react";
 
 import { PermissionGate } from "@/components/auth/PermissionGate";
 import { DataTable } from "@/components/common/DataTable";
@@ -57,6 +57,14 @@ const TYPE_OPTIONS = Object.entries(PRODUCT_TYPE_LABEL).map(([value, label]) => 
   label,
   value,
 }));
+
+const CLIENT_SITE_URL = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "") ?? "";
+
+function clientProductDetailUrl(product: Product) {
+  const identifier = product.slug || product.id;
+  const path = `/products/${encodeURIComponent(identifier)}`;
+  return CLIENT_SITE_URL ? `${CLIENT_SITE_URL}${path}` : path;
+}
 
 export default function ProductsPage() {
   const { message } = App.useApp();
@@ -212,7 +220,7 @@ export default function ProductsPage() {
    *
    * Bề rộng khớp chính xác với cột cùng vị trí ở bảng sản phẩm (Sản phẩm 320 /
    * Danh mục 140 / Thương hiệu 120 / Giá bán 200 / Tồn kho 110 / Trạng thái 120 /
-   * Thao tác 130) và ẩn header riêng (`showHeader={false}` ở nơi dùng) — nhờ
+   * Thao tác 160) và ẩn header riêng (`showHeader={false}` ở nơi dùng) — nhờ
    * dùng lại đúng antd `Table` với cùng bộ `width`, antd tự tính toán cột theo
    * cách giống hệt bảng cha nên các dòng biến thể luôn thẳng hàng với header
    * phía trên, không phải tự canh tay bằng div/flex (dễ lệch vài px so với
@@ -291,7 +299,7 @@ export default function ProductsPage() {
       },
       {
         key: "actions",
-        width: 130,
+        width: 160,
         align: "center",
         render: (_, variant) => {
           const canAdjustStock =
@@ -421,7 +429,7 @@ export default function ProductsPage() {
       {
         title: "Thao tác",
         key: "actions",
-        width: 130,
+        width: 160,
         align: "center",
         fixed: "right",
         render: (_, record) => {
@@ -448,6 +456,15 @@ export default function ProductsPage() {
                   </Tooltip>
                 </PermissionGate>
               )}
+              <Tooltip title="Preview">
+                <a
+                  href={clientProductDetailUrl(record)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Button type="text" size="small" icon={<ExternalLink size={16} />} />
+                </a>
+              </Tooltip>
               <Tooltip title="Sửa">
                 <Link href={routes.products.detail(record.id)}>
                   <Button type="text" size="small" icon={<Pencil size={16} />} />
