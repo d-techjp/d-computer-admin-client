@@ -55,7 +55,7 @@ export interface ProductPayload {
   slug?: string;
   productType?: ProductType;
   shortDescription?: string;
-  specifications?: Record<string, string>;
+  specifications?: ProductSpec[];
   status?: ProductStatus;
   isFeatured?: boolean;
   categoryId?: string;
@@ -63,20 +63,26 @@ export interface ProductPayload {
 }
 
 function toSpecs(value: unknown): ProductSpec[] {
-  // Backend lưu `specifications` dạng object { label: value }; chấp nhận cả
-  // dạng mảng để không vỡ với dữ liệu cũ.
+  // Contract mới lưu `specifications` dạng mảng có `position`. Vẫn chấp nhận
+  // shape cũ `{ label: value }` hoặc `{ label, value }` để không vỡ dữ liệu cũ.
   if (Array.isArray(value)) {
     return value
-      .map((item) => {
+      .map((item, index) => {
         const record = asRecord(item);
-        return { label: asString(record.label), value: asString(record.value) };
+        return {
+          name: asString(record.name ?? record.label),
+          value: asString(record.value),
+          position: asNumber(record.position, index),
+        };
       })
-      .filter((item) => item.label || item.value);
+      .filter((item) => item.name || item.value)
+      .sort((a, b) => a.position - b.position);
   }
 
-  return Object.entries(asRecord(value)).map(([label, specValue]) => ({
-    label,
+  return Object.entries(asRecord(value)).map(([name, specValue], index) => ({
+    name,
     value: String(specValue ?? ""),
+    position: index,
   }));
 }
 

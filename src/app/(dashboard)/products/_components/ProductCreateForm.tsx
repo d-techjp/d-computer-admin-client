@@ -92,7 +92,7 @@ function defaultValues(productType: ProductType): ProductCreateFormValues {
     isFeatured: false,
     active: true,
     images: [],
-    specs: DEFAULT_SPEC_LABELS.map((label) => ({ label, value: "" })),
+    specs: DEFAULT_SPEC_LABELS.map((name, position) => ({ name, value: "", position })),
     multiVariant: false,
     defaultVariantIndex: 0,
     variants: [{ ...EMPTY_VARIANT }],

@@ -18,8 +18,9 @@ export type ProductType = "standard" | "bundle" | "service";
  * biến thể phải khai bằng option (`ProductOption`).
  */
 export interface ProductSpec {
-  label: string;
+  name: string;
   value: string;
+  position: number;
 }
 
 /**
