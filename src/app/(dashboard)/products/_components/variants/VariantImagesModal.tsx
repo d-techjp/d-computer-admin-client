@@ -5,6 +5,7 @@ import Image from "next/image";
 import { App, Button, Modal, Tooltip } from "antd";
 import { ImagePlus, Star, Trash2, Upload } from "lucide-react";
 
+import { useProductImageCropper } from "@/components/common/ProductImageCropper";
 import { updateVariant } from "@/lib/api/variants";
 import {
   ACCEPTED_IMAGE_TYPES,
@@ -61,6 +62,7 @@ export function VariantImagesModal({
   onSaved,
 }: VariantImagesModalProps) {
   const { message } = App.useApp();
+  const { cropFiles, cropperNode } = useProductImageCropper();
   const [images, setImages] = useState<ImageEntry[]>(variant ? toEntries(variant) : []);
   const [dragOver, setDragOver] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -78,7 +80,7 @@ export function VariantImagesModal({
     async (fileList: FileList | null) => {
       if (!fileList?.length) return;
 
-      const accepted: ImageEntry[] = [];
+      const valid: File[] = [];
       for (const file of Array.from(fileList)) {
         if (!isAcceptedImageType(file)) {
           message.error(`${file.name}: chỉ nhận ảnh JPG, PNG, WEBP, AVIF hoặc GIF`);
@@ -88,16 +90,22 @@ export function VariantImagesModal({
           message.error(`${file.name}: ảnh vượt quá ${MAX_IMAGE_SIZE_MB}MB`);
           continue;
         }
-        accepted.push({
+        valid.push(file);
+      }
+
+      // Cắt về 4:3 như ảnh sản phẩm — ảnh biến thể hiển thị trong cùng khung ở
+      // storefront. Ảnh đã lưu trên R2 giữ nguyên, chỉ file mới chọn mới qua đây.
+      const accepted: ImageEntry[] = await Promise.all(
+        (await cropFiles(valid)).map(async (file) => ({
           id: `${file.name}-${file.lastModified}-${file.size}`,
           url: await readAsDataUrl(file),
           file,
-        });
-      }
+        })),
+      );
 
       if (accepted.length) setImages((current) => [...current, ...accepted]);
     },
-    [message],
+    [cropFiles, message],
   );
 
   const moveTo = (from: number, to: number) => {
@@ -282,6 +290,8 @@ export function VariantImagesModal({
                 : "Thêm ít nhất 1 ảnh để lưu."}
             </p>
           )}
+
+          {cropperNode}
         </div>
       )}
     </Modal>

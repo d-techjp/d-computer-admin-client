@@ -7,6 +7,7 @@ import { ImagePlus, Star, Trash2, Upload } from "lucide-react";
 import type { FieldValues } from "react-hook-form";
 import { useController } from "react-hook-form";
 
+import { useProductImageCropper } from "@/components/common/ProductImageCropper";
 import {
   ACCEPTED_IMAGE_TYPES,
   isAcceptedImageType,
@@ -31,6 +32,12 @@ export interface UploadedImage {
 interface ImageUploadFieldProps<T extends FieldValues> extends BaseFieldProps<T> {
   maxCount?: number;
   minCount?: number;
+  /**
+   * Bắt buộc cắt ảnh mới chọn về khung 4:3 chuẩn ảnh sản phẩm trước khi vào
+   * preview. Chỉ bật ở ảnh sản phẩm/biến thể — ảnh bìa bài viết dùng 16:9 nên
+   * để nguyên.
+   */
+  crop?: boolean;
 }
 
 /**
@@ -52,8 +59,10 @@ export function ImageUploadField<T extends FieldValues>({
   className,
   maxCount = 6,
   minCount = 0,
+  crop = false,
 }: ImageUploadFieldProps<T>) {
   const { message, modal } = App.useApp();
+  const { cropFiles, cropperNode } = useProductImageCropper();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -72,7 +81,7 @@ export function ImageUploadField<T extends FieldValues>({
         return;
       }
 
-      const accepted: UploadedImage[] = [];
+      const valid: File[] = [];
 
       for (const file of Array.from(fileList).slice(0, room)) {
         if (!isAcceptedImageType(file)) {
@@ -83,18 +92,27 @@ export function ImageUploadField<T extends FieldValues>({
           message.error(`${file.name}: ảnh vượt quá ${MAX_IMAGE_SIZE_MB}MB`);
           continue;
         }
-        accepted.push({
+        valid.push(file);
+      }
+
+      // Cắt về 4:3 trước khi ảnh vào preview/draft, nên từ đây trở đi luồng cũ
+      // không đổi: vẫn là File trong value, upload lúc submit. Ảnh bị bỏ qua ở
+      // bước cắt thì không được thêm vào danh sách.
+      const ready = crop ? await cropFiles(valid) : valid;
+
+      const accepted: UploadedImage[] = await Promise.all(
+        ready.map(async (file) => ({
           id: `${file.name}-${file.lastModified}-${file.size}`,
           name: file.name,
           url: await readAsDataUrl(file),
           size: file.size,
           file,
-        });
-      }
+        })),
+      );
 
       if (accepted.length) field.onChange([...images, ...accepted]);
     },
-    [field, images, maxCount, message],
+    [crop, cropFiles, field, images, maxCount, message],
   );
 
   const removeAt = (index: number) =>
@@ -134,8 +152,9 @@ export function ImageUploadField<T extends FieldValues>({
       required={required}
       error={fieldState.error?.message}
       helpText={
-        helpText ??
-        `Tối đa ${maxCount} ảnh, mỗi ảnh dưới ${MAX_IMAGE_SIZE_MB}MB. Kéo ảnh để đổi thứ tự, bấm ngôi sao để chọn ảnh đại diện.`
+        (helpText ??
+          `Tối đa ${maxCount} ảnh, mỗi ảnh dưới ${MAX_IMAGE_SIZE_MB}MB. Kéo ảnh để đổi thứ tự, bấm ngôi sao để chọn ảnh đại diện.`) +
+        (crop ? " Ảnh mới chọn được cắt về khung 4:3 trước khi thêm." : "")
       }
       className={className}
     >
@@ -284,6 +303,8 @@ export function ImageUploadField<T extends FieldValues>({
             event.target.value = "";
           }}
         />
+
+        {cropperNode}
       </div>
     </FormItemLayout>
   );

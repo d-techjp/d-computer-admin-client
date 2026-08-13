@@ -379,6 +379,7 @@ export function ProductCreateForm({ productType }: { productType: ProductType })
               name="images"
               control={control}
               maxCount={8}
+              crop
               disabled={submitting}
               helpText="Ảnh đầu tiên là ảnh đại diện."
               rules={{
@@ -628,6 +629,7 @@ export function ProductCreateForm({ productType }: { productType: ProductType })
                     name={`variants.${index}.images`}
                     control={control}
                     maxCount={4}
+                    crop
                     disabled={submitting}
                     helpText="Ảnh riêng cho phiên bản này — bỏ trống thì dùng ảnh sản phẩm."
                   />

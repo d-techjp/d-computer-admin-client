@@ -1,7 +1,9 @@
 import {
   Boxes,
   FolderTree,
+  GalleryHorizontalEnd,
   LayoutDashboard,
+  Megaphone,
   Newspaper,
   Package,
   PackageMinus,
@@ -93,6 +95,19 @@ export const menuConfig: MenuItemConfig[] = [
         label: "Thương hiệu",
         icon: Tags,
         path: routes.products.brands,
+      },
+    ],
+  },
+  {
+    key: "campaigns",
+    label: "Chiến dịch",
+    icon: Megaphone,
+    children: [
+      {
+        key: "campaigns-carousels",
+        label: "Carousel sản phẩm",
+        icon: GalleryHorizontalEnd,
+        path: routes.campaigns.carousels,
       },
     ],
   },

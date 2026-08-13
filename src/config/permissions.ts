@@ -28,6 +28,8 @@ export const ROUTE_PERMISSIONS: RoutePermissionRule[] = [
   { path: routes.products.brands, permission: "product.brand.manage" },
   { path: routes.products.index, permission: "product.manage" },
 
+  { path: routes.campaigns.index, permission: "product.carousel.manage" },
+
   { path: routes.orders.index, permission: "orders.manage" },
   { path: routes.warehouse.index, permission: "inventory.manage" },
   { path: routes.posts.index, permission: "articles.manage" },

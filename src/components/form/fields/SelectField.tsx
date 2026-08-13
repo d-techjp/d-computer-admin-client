@@ -37,6 +37,12 @@ export function SelectField<T extends FieldValues>({
     field: { ref, ...field },
     fieldState,
   } = useController({ name, control, rules });
+  const value =
+    field.value === "" || field.value === null || field.value === undefined
+      ? multiple
+        ? []
+        : undefined
+      : field.value;
 
   return (
     <FormItemLayout
@@ -51,6 +57,10 @@ export function SelectField<T extends FieldValues>({
         {...field}
         id={name}
         ref={ref}
+        value={value}
+        onChange={(nextValue) => {
+          field.onChange(nextValue === undefined || nextValue === null ? "" : nextValue);
+        }}
         mode={multiple ? "multiple" : undefined}
         status={fieldState.error ? "error" : undefined}
         disabled={disabled}

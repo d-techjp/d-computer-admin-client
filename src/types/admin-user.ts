@@ -33,6 +33,7 @@ export const PERMISSION_LABEL: Record<string, string> = {
   "product.manage": "Quản lý sản phẩm",
   "product.category.manage": "Quản lý danh mục",
   "product.brand.manage": "Quản lý thương hiệu",
+  "product.carousel.manage": "Quản lý carousel sản phẩm",
   "orders.manage": "Quản lý đơn hàng",
   "user.customer.manage": "Quản lý khách hàng",
   "user.admin.manage": "Quản lý quản trị viên",

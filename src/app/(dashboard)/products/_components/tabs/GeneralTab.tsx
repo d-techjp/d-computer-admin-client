@@ -239,6 +239,7 @@ export function GeneralTab({
             name="images"
             control={control}
             maxCount={8}
+            crop
             // Sàn suy từ ảnh đang có trên server, không suy từ danh sách đang
             // sửa: sản phẩm đã có ảnh thì backend không đưa về "không ảnh" được
             // nữa, còn sản phẩm chưa có ảnh thì ảnh vừa thêm phải gỡ ra được.

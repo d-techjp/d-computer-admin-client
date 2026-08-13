@@ -30,6 +30,11 @@ export const routes = {
     brands: "/products/brands",
   },
 
+  campaigns: {
+    index: "/campaigns",
+    carousels: "/campaigns/carousels",
+  },
+
   orders: {
     index: "/orders",
     detail: (id: string) => `/orders/${id}`,
