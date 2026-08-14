@@ -68,9 +68,11 @@ export function chromeFor(mode: ThemeMode) {
 export const ORDER_STATUS_COLOR_INDEX = {
   pending: 3, // vàng
   confirmed: 0, // brand blue
+  processing: 6, // violet
   shipping: 1, // cam
-  delivered: 2, // aqua
+  completed: 2, // aqua
   cancelled: 7, // đỏ
+  refunded: 4, // magenta
 } as const;
 
 export function orderStatusColors(mode: ThemeMode) {

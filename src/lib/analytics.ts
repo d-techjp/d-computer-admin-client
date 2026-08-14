@@ -10,8 +10,9 @@ import { stockLevelOf } from "@/types/warehouse";
 const REVENUE_STATUSES: OrderStatus[] = [
   "pending",
   "confirmed",
+  "processing",
   "shipping",
-  "delivered",
+  "completed",
 ];
 
 function inRange(order: Order, from: string, to: string) {
@@ -133,12 +134,13 @@ export function buildTopProducts(from: string, to: string, limit = 8) {
     )
     .forEach((order) =>
       order.items.forEach((item) => {
-        const current = revenueByProduct.get(item.productId) ?? {
+        const productKey = item.productId ?? item.variantId ?? item.sku;
+        const current = revenueByProduct.get(productKey) ?? {
           name: item.productName,
           revenue: 0,
         };
-        current.revenue += item.price * item.quantity;
-        revenueByProduct.set(item.productId, current);
+        current.revenue += item.total;
+        revenueByProduct.set(productKey, current);
       }),
     );
 

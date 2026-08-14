@@ -285,28 +285,28 @@ export default function WarehousePage() {
           />
         </FormItemLayout>
 
-        <FormItemLayout label="Tồn từ">
-          <InputNumber
-            min={0}
-            placeholder="0"
-            value={filters.minStock}
-            onChange={(value) =>
-              setFilters((current) => ({ ...current, minStock: value ?? undefined }))
-            }
-            className="w-full"
-          />
-        </FormItemLayout>
-
-        <FormItemLayout label="Tồn đến">
-          <InputNumber
-            min={0}
-            placeholder="Không giới hạn"
-            value={filters.maxStock}
-            onChange={(value) =>
-              setFilters((current) => ({ ...current, maxStock: value ?? undefined }))
-            }
-            className="w-full"
-          />
+        <FormItemLayout label="Khoảng tồn">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+            <InputNumber
+              min={0}
+              placeholder="Từ"
+              value={filters.minStock}
+              onChange={(value) =>
+                setFilters((current) => ({ ...current, minStock: value ?? undefined }))
+              }
+              className="w-full"
+            />
+            <span className="text-muted text-sm">-</span>
+            <InputNumber
+              min={0}
+              placeholder="Đến"
+              value={filters.maxStock}
+              onChange={(value) =>
+                setFilters((current) => ({ ...current, maxStock: value ?? undefined }))
+              }
+              className="w-full"
+            />
+          </div>
         </FormItemLayout>
       </SearchFilterBar>
 

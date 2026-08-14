@@ -2,6 +2,7 @@ import type {
   Order,
   OrderItem,
   OrderStatus,
+  PaymentStatus,
   PaymentMethod,
 } from "@/types/order";
 
@@ -10,11 +11,19 @@ import { products } from "./products";
 import { faker, seedFaker } from "./utils";
 
 const STATUS_WEIGHTS: OrderStatus[] = [
-  ...Array<OrderStatus>(4).fill("delivered"),
+  ...Array<OrderStatus>(4).fill("completed"),
   ...Array<OrderStatus>(3).fill("shipping"),
+  ...Array<OrderStatus>(2).fill("processing"),
   ...Array<OrderStatus>(3).fill("confirmed"),
   ...Array<OrderStatus>(2).fill("pending"),
   "cancelled",
+];
+
+const PAYMENT_STATUS_WEIGHTS: PaymentStatus[] = [
+  ...Array<PaymentStatus>(7).fill("paid"),
+  ...Array<PaymentStatus>(3).fill("unpaid"),
+  "refunded",
+  "failed",
 ];
 
 const PAYMENT_METHODS: PaymentMethod[] = [
@@ -41,13 +50,19 @@ function generateOrders(count: number): Order[] {
 
     const items: OrderItem[] = faker.helpers
       .arrayElements(sellableProducts, itemCount)
-      .map((product) => ({
+      .map((product, itemIndex) => {
+        const quantity = faker.number.int({ min: 1, max: 3 });
+        const price = product.price;
+        return {
+        id: `item-${index + 1}-${itemIndex + 1}`,
         productId: product.id,
         productName: product.name,
         sku: product.sku,
-        quantity: faker.number.int({ min: 1, max: 3 }),
-        price: product.price,
-      }));
+        quantity,
+        price,
+        total: price * quantity,
+      };
+      });
 
     const subtotal = items.reduce(
       (sum, item) => sum + item.price * item.quantity,
@@ -69,8 +84,10 @@ function generateOrders(count: number): Order[] {
       items,
       subtotal,
       shippingFee,
+      discount: 0,
       total: subtotal + shippingFee,
       status: faker.helpers.arrayElement(STATUS_WEIGHTS),
+      paymentStatus: faker.helpers.arrayElement(PAYMENT_STATUS_WEIGHTS),
       paymentMethod: faker.helpers.arrayElement(PAYMENT_METHODS),
       createdAt: createdAt.toISOString(),
     } satisfies Order;

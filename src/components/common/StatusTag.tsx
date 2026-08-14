@@ -2,7 +2,12 @@
 
 import { Tag } from "antd";
 
-import { ORDER_STATUS_LABEL, type OrderStatus } from "@/types/order";
+import {
+  ORDER_STATUS_LABEL,
+  PAYMENT_STATUS_LABEL,
+  type OrderStatus,
+  type PaymentStatus,
+} from "@/types/order";
 import {
   PRODUCT_STATUS_LABEL,
   PRODUCT_TYPE_LABEL,
@@ -30,9 +35,18 @@ import { STOCK_LEVEL_LABEL, type StockLevel } from "@/types/warehouse";
 const ORDER_COLOR: Record<OrderStatus, string> = {
   pending: "gold",
   confirmed: "blue",
+  processing: "cyan",
   shipping: "orange",
-  delivered: "green",
+  completed: "green",
   cancelled: "red",
+  refunded: "purple",
+};
+
+const PAYMENT_COLOR: Record<PaymentStatus, string> = {
+  unpaid: "default",
+  paid: "green",
+  refunded: "purple",
+  failed: "red",
 };
 
 const PRODUCT_COLOR: Record<ProductStatus, string> = {
@@ -84,6 +98,10 @@ const STOCK_COLOR: Record<StockLevel, string> = {
 
 export const OrderStatusTag = ({ status }: { status: OrderStatus }) => (
   <Tag color={ORDER_COLOR[status]}>{ORDER_STATUS_LABEL[status]}</Tag>
+);
+
+export const PaymentStatusTag = ({ status }: { status: PaymentStatus }) => (
+  <Tag color={PAYMENT_COLOR[status]}>{PAYMENT_STATUS_LABEL[status]}</Tag>
 );
 
 export const ProductStatusTag = ({ status }: { status: ProductStatus }) => (
