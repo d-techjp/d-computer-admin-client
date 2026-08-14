@@ -1,15 +1,11 @@
-import { stockOutMovements } from "@/mock/warehouse";
-
-import { StockMovementPage } from "../StockMovementPage";
+import { InventoryLedgerPage } from "../_components/InventoryLedgerPage";
 
 export default function StockOutPage() {
   return (
-    <StockMovementPage
+    <InventoryLedgerPage
       type="out"
-      source={stockOutMovements}
-      title="Phiếu xuất kho"
-      description="Lịch sử xuất hàng khỏi kho theo đơn, bảo hành hoặc điều chuyển"
-      partnerLabel="Lý do xuất"
+      title="Xuất kho"
+      description="Lịch sử giảm tồn: bán theo đơn, hàng lỗi, thất thoát, điều chỉnh kiểm kê"
     />
   );
 }

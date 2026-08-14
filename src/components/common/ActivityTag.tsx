@@ -3,37 +3,49 @@
 import { Tag } from "antd";
 
 import {
-  ACTIVITY_ACTION_LABEL,
-  ACTIVITY_MODULE_LABEL,
-  ACTIVITY_RESULT_LABEL,
-  type ActivityAction,
-  type ActivityModule,
-  type ActivityResult,
+  activityActionLabel,
+  activityResourceLabel,
+  ACTIVITY_STATUS_LABEL,
+  type ActivityStatus,
 } from "@/types/activity-log";
 
-const ACTION_COLOR: Record<ActivityAction, string> = {
+/**
+ * Màu theo mức độ tác động, không phải theo từng `action`: contract cho phép
+ * `action` là chuỗi tự do nên bảng màu chỉ tô những giá trị đã biết, giá trị lạ
+ * dùng màu mặc định thay vì không có màu nào.
+ */
+const ACTION_COLOR: Record<string, string> = {
   login: "blue",
   logout: "default",
+  logout_all: "default",
+  change_password: "purple",
   create: "green",
   update: "gold",
   delete: "red",
+  publish: "green",
+  unpublish: "orange",
+  adjust_stock: "gold",
+  import: "green",
   export: "cyan",
-  permission_change: "purple",
+  reorder: "geekblue",
+  assign_role: "purple",
+  assign_permissions: "purple",
+  status_change: "gold",
 };
 
-const RESULT_COLOR: Record<ActivityResult, string> = {
+const STATUS_COLOR: Record<ActivityStatus, string> = {
   success: "green",
   failed: "red",
 };
 
-export const ActivityActionTag = ({ action }: { action: ActivityAction }) => (
-  <Tag color={ACTION_COLOR[action]}>{ACTIVITY_ACTION_LABEL[action]}</Tag>
+export const ActivityActionTag = ({ action }: { action: string }) => (
+  <Tag color={ACTION_COLOR[action]}>{activityActionLabel(action)}</Tag>
 );
 
-export const ActivityModuleTag = ({ module }: { module: ActivityModule }) => (
-  <Tag>{ACTIVITY_MODULE_LABEL[module]}</Tag>
+export const ActivityResourceTag = ({ resource }: { resource: string }) => (
+  <Tag>{activityResourceLabel(resource)}</Tag>
 );
 
-export const ActivityResultTag = ({ result }: { result: ActivityResult }) => (
-  <Tag color={RESULT_COLOR[result]}>{ACTIVITY_RESULT_LABEL[result]}</Tag>
+export const ActivityStatusTag = ({ status }: { status: ActivityStatus }) => (
+  <Tag color={STATUS_COLOR[status]}>{ACTIVITY_STATUS_LABEL[status]}</Tag>
 );

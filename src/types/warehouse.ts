@@ -1,4 +1,10 @@
-export type StockMovementType = "in" | "out";
+/**
+ * Dữ liệu tồn kho **mock** của dashboard (biểu đồ + thẻ thống kê). Tồn kho thật
+ * nằm ở `types/inventory.ts` (`GET /inventory/stock`), tính theo biến thể chứ
+ * không theo sản phẩm — nhập/xuất kho dùng nhóm type đó.
+ *
+ * `StockLevel` là thang chung cho cả hai: `StockLevelTag` hiển thị thống nhất.
+ */
 export type StockLevel = "in_stock" | "low_stock" | "out_of_stock";
 
 export interface StockItem {
@@ -15,21 +21,6 @@ export interface StockItem {
   /** Ngưỡng cảnh báo sắp hết hàng */
   reorderPoint: number;
   updatedAt: string;
-}
-
-export interface StockMovement {
-  id: string;
-  code: string;
-  type: StockMovementType;
-  productId: string;
-  productName: string;
-  sku: string;
-  quantity: number;
-  /** Nhà cung cấp (nhập) hoặc lý do xuất */
-  partner: string;
-  note: string;
-  createdBy: string;
-  createdAt: string;
 }
 
 export const STOCK_LEVEL_LABEL: Record<StockLevel, string> = {

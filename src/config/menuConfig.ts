@@ -130,13 +130,13 @@ export const menuConfig: MenuItemConfig[] = [
       },
       {
         key: "warehouse-stock-in",
-        label: "Phiếu nhập kho",
+        label: "Nhập kho",
         icon: PackagePlus,
         path: routes.warehouse.stockIn,
       },
       {
         key: "warehouse-stock-out",
-        label: "Phiếu xuất kho",
+        label: "Xuất kho",
         icon: PackageMinus,
         path: routes.warehouse.stockOut,
       },

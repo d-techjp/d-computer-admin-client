@@ -1,3 +1,5 @@
+import dayjs from "dayjs";
+
 import type { QueryValue } from "./client";
 
 export interface ApiListParams {
@@ -66,6 +68,19 @@ export function parseListResponse<T>(
       fallback.pageSize,
     ),
   };
+}
+
+/**
+ * Filter thời gian trên UI là ngày trần (`YYYY-MM-DD`) còn các endpoint nhận
+ * ISO datetime, nên phải nới ra hai đầu ngày — nếu không, chọn "hôm nay" sẽ
+ * mất sạch bản ghi phát sinh sau 00:00.
+ */
+export function toIsoStart(date?: string) {
+  return date ? dayjs(date).startOf("day").toISOString() : undefined;
+}
+
+export function toIsoEnd(date?: string) {
+  return date ? dayjs(date).endOf("day").toISOString() : undefined;
 }
 
 export function compactPayload<T extends object>(payload: T) {
