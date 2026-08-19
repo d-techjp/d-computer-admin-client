@@ -84,6 +84,8 @@ export interface Category {
   parentId?: string;
   parentName?: string;
   productCount: number;
+  sortOrder: number;
+  isActive: boolean;
   createdAt: string;
 }
 

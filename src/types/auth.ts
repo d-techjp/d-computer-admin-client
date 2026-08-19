@@ -17,6 +17,7 @@ export type AppPermission =
   | "product.category.manage"
   | "product.brand.manage"
   | "product.carousel.manage"
+  | "campaign.tiktok.manage"
   | "articles.manage"
   | "orders.manage"
   | "inventory.manage"
@@ -31,6 +32,7 @@ export const APP_PERMISSIONS: readonly AppPermission[] = [
   "product.category.manage",
   "product.brand.manage",
   "product.carousel.manage",
+  "campaign.tiktok.manage",
   "articles.manage",
   "orders.manage",
   "inventory.manage",
@@ -46,6 +48,7 @@ export const APP_PERMISSION_LABEL: Record<AppPermission, string> = {
   "product.category.manage": "Quản lý danh mục",
   "product.brand.manage": "Quản lý thương hiệu",
   "product.carousel.manage": "Quản lý carousel sản phẩm",
+  "campaign.tiktok.manage": "Quản lý video TikTok",
   "articles.manage": "Quản lý bài viết",
   "orders.manage": "Quản lý đơn hàng",
   "inventory.manage": "Quản lý kho",

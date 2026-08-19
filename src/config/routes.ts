@@ -33,6 +33,7 @@ export const routes = {
   campaigns: {
     index: "/campaigns",
     carousels: "/campaigns/carousels",
+    tiktok: "/campaigns/tiktok",
   },
 
   orders: {

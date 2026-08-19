@@ -8,7 +8,7 @@ import type { Brand, Category } from "@/types/product";
 
 import { apiFetch } from "./client";
 import { compactPayload, parseListResponse, toListQuery, type ApiListParams } from "./pagination";
-import { asIsoDate, asNumber, asRecord, asString } from "./parse";
+import { asBoolean, asIsoDate, asNumber, asRecord, asString } from "./parse";
 
 export interface CategoryPayload {
   name?: string;
@@ -42,6 +42,8 @@ export function toCategory(value: unknown): Category {
     parentId: asString(record.parentId ?? parent.id) || undefined,
     parentName: asString(record.parentName ?? parent.name) || undefined,
     productCount: asNumber(record.productCount ?? record.productsCount),
+    sortOrder: asNumber(record.sortOrder),
+    isActive: asBoolean(record.isActive, true),
     createdAt: asIsoDate(record.createdAt ?? record.created_at),
   };
 }
@@ -80,6 +82,10 @@ export function listCategories(
   );
 }
 
+export function getCategory(id: string) {
+  return apiFetch<unknown>(`/categories/${id}`).then(toCategory);
+}
+
 export function createCategory(payload: Required<Pick<CategoryPayload, "name">> & CategoryPayload) {
   return apiFetch<unknown>("/categories", {
     method: "POST",
@@ -96,6 +102,13 @@ export function updateCategory(id: string, payload: CategoryPayload) {
 
 export function deleteCategory(id: string) {
   return apiFetch<void>(`/categories/${id}`, { method: "DELETE" });
+}
+
+export function reorderCategories(items: { id: string; sortOrder: number }[]) {
+  return apiFetch<void>("/categories/reorder", {
+    method: "PATCH",
+    body: { items },
+  });
 }
 
 export function listBrands(params: ApiListParams & { isActive?: boolean } = { page: 1, limit: 100 }) {

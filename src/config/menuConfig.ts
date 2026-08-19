@@ -15,6 +15,7 @@ import {
   Tags,
   UserRound,
   Users,
+  Video,
   Warehouse,
   type LucideIcon,
 } from "lucide-react";
@@ -108,6 +109,12 @@ export const menuConfig: MenuItemConfig[] = [
         label: "Carousel sản phẩm",
         icon: GalleryHorizontalEnd,
         path: routes.campaigns.carousels,
+      },
+      {
+        key: "campaigns-tiktok",
+        label: "Tiktok",
+        icon: Video,
+        path: routes.campaigns.tiktok,
       },
     ],
   },
