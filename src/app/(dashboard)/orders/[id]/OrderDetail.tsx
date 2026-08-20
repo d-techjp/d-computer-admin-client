@@ -13,6 +13,7 @@ import { fetchOrder, updateOrderPaymentStatus, updateOrderStatus } from "@/lib/a
 import { formatCurrency, formatNumber } from "@/lib/utils";
 import {
   ORDER_STATUS_LABEL,
+  ORDER_STATUS_TRANSITIONS,
   PAYMENT_METHOD_LABEL,
   PAYMENT_STATUS_LABEL,
   type Order,
@@ -23,10 +24,6 @@ import {
 
 /** Luồng trạng thái chuẩn; đơn đã huỷ nằm ngoài luồng này */
 const FLOW: OrderStatus[] = ["pending", "confirmed", "processing", "shipping", "completed"];
-
-const STATUS_OPTIONS = Object.entries(ORDER_STATUS_LABEL).map(
-  ([value, label]) => ({ label, value }),
-);
 
 const PAYMENT_STATUS_OPTIONS = Object.entries(PAYMENT_STATUS_LABEL).map(
   ([value, label]) => ({ label, value }),
@@ -105,8 +102,15 @@ export function OrderDetail({ orderId }: { orderId: string }) {
   const currentStep = FLOW.indexOf(status);
   const isOutsideFlow = status === "cancelled" || status === "refunded";
 
-  const statusChanged = !!order && status !== order.status;
   const paymentChanged = !!order && paymentStatus !== order.paymentStatus;
+  const nextStatus = ORDER_STATUS_TRANSITIONS[status].find((candidate) => candidate !== "cancelled");
+  const nextActionLabel: Partial<Record<OrderStatus, string>> = {
+    confirmed: "Xác nhận đơn",
+    processing: "Bắt đầu xử lý",
+    shipping: "Chuyển sang giao hàng",
+    completed: "Xác nhận hoàn tất",
+    refunded: "Hoàn tiền đơn",
+  };
 
   const shippingAddress = useMemo(() => {
     const detail = order?.shippingAddressDetail;
@@ -114,13 +118,13 @@ export function OrderDetail({ orderId }: { orderId: string }) {
     return [detail.street, detail.ward, detail.district, detail.province].filter(Boolean).join(", ");
   }, [order]);
 
-  const onSaveStatus = async () => {
+  const onSaveStatus = async (nextStatus: OrderStatus) => {
     if (!order) return;
     setSavingStatus(true);
     try {
       const response = await updateOrderStatus(order.id, {
-        status,
-        reason: reason || undefined,
+        status: nextStatus,
+        reason: nextStatus === "cancelled" ? reason || undefined : undefined,
       });
       setOrder(response);
       setStatus(response.status);
@@ -192,49 +196,65 @@ export function OrderDetail({ orderId }: { orderId: string }) {
             items={FLOW.map((step) => ({ title: ORDER_STATUS_LABEL[step] }))}
           />
         )}
+        {nextStatus && !isOutsideFlow && (
+          <div className="mt-4 flex justify-end">
+            <Button type="primary" loading={savingStatus} onClick={() => void onSaveStatus(nextStatus)}>
+              {nextActionLabel[nextStatus]}
+            </Button>
+          </div>
+        )}
       </div>
 
-      <div className="bg-card border-line shadow-card mb-4 grid grid-cols-1 gap-3 rounded-lg border p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-        <div>
-          <p className="text-fg mb-1 text-sm font-semibold">Trạng thái đơn</p>
-          <Select
-            value={status}
-            options={STATUS_OPTIONS}
-            onChange={(value) => setStatus(value)}
-            className="w-full"
-          />
-        </div>
-        <div>
-          <p className="text-fg mb-1 text-sm font-semibold">Lý do</p>
-          <Input
-            allowClear
-            placeholder="Bắt buộc khi huỷ đơn"
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-          />
-        </div>
-        <div className="flex items-end">
-          <Button
-            type="primary"
-            loading={savingStatus}
-            disabled={!statusChanged}
-            onClick={onSaveStatus}
-          >
-            Cập nhật trạng thái
-          </Button>
+      <div className="bg-card border-line shadow-card mb-4 rounded-lg border p-4">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,auto)] lg:items-end">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <p className="text-fg text-sm font-semibold">Trạng thái đơn</p>
+            <OrderStatusTag status={status} />
+            <span className="text-muted text-sm">
+              Dùng nút ở tiến trình phía trên để chuyển sang bước kế tiếp.
+            </span>
+          </div>
+          {!isOutsideFlow && status !== "completed" && (
+            <div className="flex flex-wrap items-end justify-end gap-2">
+              <div className="w-full sm:w-60">
+                <Input
+                  allowClear
+                  aria-label="Lý do huỷ đơn"
+                  placeholder="Lý do huỷ đơn (bắt buộc)"
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                />
+              </div>
+              <Button
+                danger
+                loading={savingStatus}
+                disabled={!reason.trim()}
+                onClick={() => void onSaveStatus("cancelled")}
+              >
+                Huỷ đơn
+              </Button>
+            </div>
+          )}
         </div>
 
-        <div>
-          <p className="text-fg mb-1 text-sm font-semibold">Trạng thái thanh toán</p>
-          <Select
-            value={paymentStatus}
-            options={PAYMENT_STATUS_OPTIONS}
-            onChange={(value) => setPaymentStatus(value)}
-            className="w-full"
-          />
-        </div>
-        <div className="lg:col-span-2 flex items-end">
-          <Button loading={savingPayment} disabled={!paymentChanged} onClick={onSavePayment}>
+        <div className="border-line my-4 border-t" />
+
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-fg mb-1 text-sm font-semibold">Trạng thái thanh toán</p>
+            <Select
+              value={paymentStatus}
+              options={PAYMENT_STATUS_OPTIONS}
+              onChange={(value) => setPaymentStatus(value)}
+              className={`payment-status-select payment-status-select--${paymentStatus} w-40`}
+            />
+          </div>
+          <Button
+            type="primary"
+            loading={savingPayment}
+            disabled={!paymentChanged}
+            onClick={onSavePayment}
+          >
             Cập nhật thanh toán
           </Button>
         </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { DragEndEvent } from "@dnd-kit/core";
+import type { DragEndEvent, Modifier } from "@dnd-kit/core";
 import { DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -28,6 +28,15 @@ import { TiktokVideoFormModal } from "./_components/TiktokVideoFormModal";
 
 /** Danh sách video luôn nhỏ và cần kéo-thả toàn cục nên nạp một lần, không phân trang. */
 const FETCH_LIMIT = 100;
+const DESCRIPTION_PREVIEW_LENGTH = 90;
+
+// Reordering table rows is strictly vertical. This prevents a dragged row from
+// following tiny horizontal pointer movements beside Ant Design's scroll bar.
+const restrictToVerticalAxis: Modifier = ({ transform }) => ({ ...transform, x: 0 });
+
+// The table's horizontal scroller must remain user-controlled during a drag;
+// otherwise dnd-kit repeatedly auto-scrolls it at the right edge and jitters.
+const canAutoScroll = (element: Element) => !element.classList.contains("ant-table-content");
 
 export default function TiktokVideosPage() {
   const { message, modal } = App.useApp();
@@ -38,6 +47,7 @@ export default function TiktokVideosPage() {
   const [savingOrder, setSavingOrder] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<TiktokVideo | null>(null);
+  const [expandedDescriptionIds, setExpandedDescriptionIds] = useState<Set<string>>(new Set());
 
   const orderDirty = useMemo(
     () => rows.map((row) => row.id).join() !== savedOrderIds.join(),
@@ -139,6 +149,15 @@ export default function TiktokVideosPage() {
     setModalOpen(true);
   }, []);
 
+  const toggleDescription = useCallback((id: string) => {
+    setExpandedDescriptionIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
   const columns = useMemo<ColumnsType<TiktokVideo>>(
     () => [
       { key: "sort", width: 40, align: "center", render: () => <DragHandle /> },
@@ -169,13 +188,48 @@ export default function TiktokVideosPage() {
       {
         title: "Mô tả",
         dataIndex: "description",
-        render: (description: string | undefined) =>
-          description || <span className="text-muted">—</span>,
+        width: 280,
+        onCell: () => ({ style: { width: 280, minWidth: 280, maxWidth: 280 } }),
+        render: (description: string | undefined, record) => {
+          if (!description) return <span className="text-muted">—</span>;
+
+          const isLong = description.length > DESCRIPTION_PREVIEW_LENGTH;
+          const expanded = expandedDescriptionIds.has(record.id);
+          const preview = `${description.slice(0, DESCRIPTION_PREVIEW_LENGTH).trimEnd()}…`;
+
+          if (!isLong) return <span className="block break-words">{description}</span>;
+
+          return expanded ? (
+            <div className="w-[280px] min-w-[280px] max-w-[280px] break-words">
+              <span>{description}</span>
+              <Button
+                type="link"
+                size="small"
+                className="h-auto px-1 text-xs"
+                onClick={() => toggleDescription(record.id)}
+              >
+                Thu gọn
+              </Button>
+            </div>
+          ) : (
+            <div className="flex w-[280px] min-w-[280px] max-w-[280px] items-baseline gap-1 overflow-hidden">
+              <span className="min-w-0 flex-1 truncate">{preview}</span>
+              <Button
+                type="link"
+                size="small"
+                className="h-auto shrink-0 px-0 text-xs"
+                onClick={() => toggleDescription(record.id)}
+              >
+                Xem thêm
+              </Button>
+            </div>
+          );
+        },
       },
       {
         title: "Link video",
         dataIndex: "videoUrl",
-        width: 260,
+        width: 230,
         render: (videoUrl: string) => (
           <a
             href={videoUrl}
@@ -206,6 +260,7 @@ export default function TiktokVideosPage() {
         key: "actions",
         width: 100,
         align: "center",
+        fixed: "right",
         render: (_, record) => (
           <Space size="small">
             <Tooltip title="Sửa">
@@ -229,7 +284,7 @@ export default function TiktokVideosPage() {
         ),
       },
     ],
-    [handleDelete, handleToggleActive, openModal],
+    [expandedDescriptionIds, handleDelete, handleToggleActive, openModal, toggleDescription],
   );
 
   return (
@@ -256,7 +311,12 @@ export default function TiktokVideosPage() {
         }
       />
 
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <DndContext
+        sensors={sensors}
+        modifiers={[restrictToVerticalAxis]}
+        autoScroll={{ canScroll: canAutoScroll }}
+        onDragEnd={handleDragEnd}
+      >
         <SortableContext
           items={rows.map((row) => row.id)}
           strategy={verticalListSortingStrategy}

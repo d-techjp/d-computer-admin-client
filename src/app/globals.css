@@ -142,6 +142,41 @@ body {
   text-shadow: none;
 }
 
+/* Select đổi trạng thái nhanh trong danh sách đơn: màu đồng nhất với StatusTag. */
+.order-status-select .ant-select-selector {
+  background-color: var(--order-status-bg) !important;
+  border-color: var(--order-status-border) !important;
+}
+
+.order-status-select .ant-select-selection-item,
+.order-status-select .ant-select-arrow {
+  color: var(--order-status-text) !important;
+}
+
+.order-status-select--pending { --order-status-bg: #fffbe6; --order-status-border: #ffe58f; --order-status-text: #ad6800; }
+.order-status-select--confirmed { --order-status-bg: #e6f4ff; --order-status-border: #91caff; --order-status-text: #0958d9; }
+.order-status-select--processing { --order-status-bg: #e6fffb; --order-status-border: #87e8de; --order-status-text: #08979c; }
+.order-status-select--shipping { --order-status-bg: #fff1e6; --order-status-border: #ffbb96; --order-status-text: #d4380d; }
+.order-status-select--completed { --order-status-bg: #f6ffed; --order-status-border: #b7eb8f; --order-status-text: #389e0d; }
+.order-status-select--cancelled { --order-status-bg: #fff1f0; --order-status-border: #ffa39e; --order-status-text: #cf1322; }
+.order-status-select--refunded { --order-status-bg: #f9f0ff; --order-status-border: #d3adf7; --order-status-text: #722ed1; }
+
+/* Trạng thái thanh toán dùng cùng treatment màu ở list và trang chi tiết. */
+.payment-status-select .ant-select-selector {
+  background-color: var(--payment-status-bg) !important;
+  border-color: var(--payment-status-border) !important;
+}
+
+.payment-status-select .ant-select-selection-item,
+.payment-status-select .ant-select-arrow {
+  color: var(--payment-status-text) !important;
+}
+
+.payment-status-select--unpaid { --payment-status-bg: #fffbe6; --payment-status-border: #ffe58f; --payment-status-text: #ad6800; }
+.payment-status-select--paid { --payment-status-bg: #f6ffed; --payment-status-border: #b7eb8f; --payment-status-text: #389e0d; }
+.payment-status-select--refunded { --payment-status-bg: #f9f0ff; --payment-status-border: #d3adf7; --payment-status-text: #722ed1; }
+.payment-status-select--failed { --payment-status-bg: #fff1f0; --payment-status-border: #ffa39e; --payment-status-text: #cf1322; }
+
 textarea {
   resize: none !important;
 }

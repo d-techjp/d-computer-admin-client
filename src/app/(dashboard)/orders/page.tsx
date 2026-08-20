@@ -19,11 +19,12 @@ import {
 import { FormItemLayout } from "@/components/form/FormItemLayout";
 import { SearchFilterBar } from "@/components/form/SearchFilterBar";
 import routes from "@/config/routes";
-import { listOrders } from "@/lib/api/orders";
+import { listOrders, updateOrderStatus } from "@/lib/api/orders";
 import { formatCurrency } from "@/lib/utils";
 import { DEFAULT_PAGE_SIZE } from "@/types/common";
 import {
   ORDER_STATUS_LABEL,
+  ORDER_STATUS_TRANSITIONS,
   PAYMENT_METHOD_LABEL,
   PAYMENT_STATUS_LABEL,
   type Order,
@@ -82,6 +83,7 @@ export default function OrdersPage() {
   const [sort, setSort] = useState<OrderSort>(DEFAULT_SORT);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [updatingOrderId, setUpdatingOrderId] = useState<string>();
 
   const loadRows = useCallback(async () => {
     setLoading(true);
@@ -122,6 +124,22 @@ export default function OrdersPage() {
   useEffect(() => {
     queueMicrotask(() => void loadRows());
   }, [loadRows]);
+
+  const updateStatusQuickly = useCallback(
+    async (order: Order, nextStatus: OrderStatus) => {
+      setUpdatingOrderId(order.id);
+      try {
+        const updated = await updateOrderStatus(order.id, { status: nextStatus });
+        setRows((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+        message.success(`Đã chuyển ${order.code} sang \"${ORDER_STATUS_LABEL[updated.status]}\"`);
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : "Không cập nhật được trạng thái đơn");
+      } finally {
+        setUpdatingOrderId(undefined);
+      }
+    },
+    [message],
+  );
 
   const columns = useMemo<ColumnsType<Order>>(
     () => [
@@ -180,9 +198,34 @@ export default function OrdersPage() {
       {
         title: "Trạng thái",
         dataIndex: "status",
-        width: 140,
+        width: 190,
         align: "center",
-        render: (status: OrderStatus) => <OrderStatusTag status={status} />,
+        render: (status: OrderStatus, record) => {
+          // Cancellation requires a reason, so it remains a deliberate action in detail view.
+          const quickTransitions = ORDER_STATUS_TRANSITIONS[status].filter(
+            (nextStatus) => nextStatus !== "cancelled",
+          );
+
+          if (quickTransitions.length === 0) return <OrderStatusTag status={status} />;
+
+          return (
+            <Select
+              size="small"
+              value={status}
+              loading={updatingOrderId === record.id}
+              disabled={updatingOrderId !== undefined}
+              options={[
+                { value: status, label: ORDER_STATUS_LABEL[status], disabled: true },
+                ...quickTransitions.map((value) => ({
+                  value,
+                  label: `→ ${ORDER_STATUS_LABEL[value]}`,
+                })),
+              ]}
+              onChange={(nextStatus: OrderStatus) => void updateStatusQuickly(record, nextStatus)}
+              className={`order-status-select order-status-select--${status} min-w-40 text-left`}
+            />
+          );
+        },
       },
       {
         title: "Ngày đặt",
@@ -207,7 +250,7 @@ export default function OrdersPage() {
         ),
       },
     ],
-    [],
+    [updateStatusQuickly, updatingOrderId],
   );
 
   const search = () => {

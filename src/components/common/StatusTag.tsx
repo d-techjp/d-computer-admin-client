@@ -43,7 +43,7 @@ const ORDER_COLOR: Record<OrderStatus, string> = {
 };
 
 const PAYMENT_COLOR: Record<PaymentStatus, string> = {
-  unpaid: "default",
+  unpaid: "gold",
   paid: "green",
   refunded: "purple",
   failed: "red",

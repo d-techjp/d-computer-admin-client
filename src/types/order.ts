@@ -65,6 +65,17 @@ export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   refunded: "Đã hoàn tiền",
 };
 
+/** Các trạng thái được backend cho phép chuyển trực tiếp từ trạng thái hiện tại. */
+export const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
+  pending: ["confirmed", "cancelled"],
+  confirmed: ["processing", "cancelled"],
+  processing: ["shipping", "cancelled"],
+  shipping: ["completed", "cancelled"],
+  completed: ["refunded"],
+  cancelled: [],
+  refunded: [],
+};
+
 export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
   unpaid: "Chưa thanh toán",
   paid: "Đã thanh toán",
