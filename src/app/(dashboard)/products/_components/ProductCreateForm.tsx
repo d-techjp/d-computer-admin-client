@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { App, Button, Input, InputNumber, Radio, Tooltip } from "antd";
+import { App, Button, Input, InputNumber, Radio, Switch, Tooltip } from "antd";
 import { GripVertical, Info, Plus, Trash2 } from "lucide-react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 
@@ -25,12 +25,13 @@ import { loadCatalogOptions } from "@/lib/api/catalog";
 import type { ImageInput } from "@/lib/api/formData";
 import { createProduct, updateProductDescription } from "@/lib/api/products";
 import { uploadImage } from "@/lib/api/uploads";
-import type { VariantPayload } from "@/lib/api/variants";
+import { setBundleItems, type VariantPayload } from "@/lib/api/variants";
 import { cn, formatCurrency } from "@/lib/utils";
 import type { SelectOption } from "@/types/common";
 import {
   DEFAULT_SPEC_LABELS,
   PRODUCT_TYPE_LABEL,
+  defaultVariantOf,
   type ProductSpec,
   type ProductType,
 } from "@/types/product";
@@ -41,6 +42,7 @@ import {
 } from "@/types/variant";
 
 import { SpecListField, toSpecifications } from "./shared/SpecListField";
+import { VariantPickerModal, type PickedVariant } from "./bundle/VariantPickerModal";
 
 interface VariantRow {
   name: string;
@@ -52,6 +54,11 @@ interface VariantRow {
   lowStockThreshold?: number;
   /** Ảnh riêng của phiên bản này — bỏ trống thì dùng ảnh sản phẩm */
   images: UploadedImage[];
+}
+
+interface BundleComponentDraft extends PickedVariant {
+  quantity: number;
+  isOptional: boolean;
 }
 
 interface ProductCreateFormValues {
@@ -125,8 +132,9 @@ function toImageInputs(images: UploadedImage[]): ImageInput[] {
  *
  * Cố tình **không dùng chung component với màn sửa**: lúc tạo chưa có id nên
  * mọi thứ phải đi trong đúng một `POST /products` kèm `variants` (backend
- * không có API tạo sản phẩm rỗng), còn lúc sửa thì master / biến thể / option
- * / combo là bốn API riêng với permission riêng.
+ * không có API tạo sản phẩm rỗng). Thành phần combo được lưu ngay sau POST,
+ * khi biến thể combo đã có id; lúc sửa thì master / biến thể / option / combo
+ * là bốn API riêng với permission riêng.
  *
  * Ngoại lệ duy nhất là mô tả chi tiết: `CreateProductDto` không có trường
  * `description`, nên nội dung rich text phải lưu bằng một request thứ hai sau
@@ -134,12 +142,14 @@ function toImageInputs(images: UploadedImage[]): ImageInput[] {
  */
 export function ProductCreateForm({ productType }: { productType: ProductType }) {
   const router = useRouter();
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [submitting, setSubmitting] = useState(false);
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([]);
   const [brandOptions, setBrandOptions] = useState<SelectOption[]>([]);
   const [descriptionOpen, setDescriptionOpen] = useState(false);
+  const [bundleComponents, setBundleComponents] = useState<BundleComponentDraft[]>([]);
+  const [bundlePickerOpen, setBundlePickerOpen] = useState(false);
 
   const { control, handleSubmit, setValue, formState } = useForm<ProductCreateFormValues>({
     defaultValues: defaultValues(productType),
@@ -163,6 +173,20 @@ export function ProductCreateForm({ productType }: { productType: ProductType })
   /** Dịch vụ không quản kho; combo derived lấy tồn từ thành phần nên cũng không nhập tay */
   const showStockFields = !isService && !(isBundle && bundlePolicy === "derived_from_components");
 
+  const addBundleComponent = (picked: PickedVariant) => {
+    setBundleComponents((current) => {
+      const existingIndex = current.findIndex(
+        (item) => item.variant.id === picked.variant.id,
+      );
+      if (existingIndex >= 0) {
+        return current.map((item, index) =>
+          index === existingIndex ? { ...item, quantity: item.quantity + 1 } : item,
+        );
+      }
+      return [...current, { ...picked, quantity: 1, isOptional: false }];
+    });
+  };
+
   useEffect(() => {
     loadCatalogOptions()
       .then(({ categoryOptions: categories, brandOptions: brands }) => {
@@ -176,7 +200,23 @@ export function ProductCreateForm({ productType }: { productType: ProductType })
       .finally(() => setLoadingOptions(false));
   }, []);
 
+  const handleCancel = () => {
+    modal.confirm({
+      title: "Huỷ tạo sản phẩm?",
+      content: "Các thông tin bạn đã nhập sẽ không được lưu.",
+      okText: "Huỷ tạo",
+      cancelText: "Tiếp tục tạo",
+      okButtonProps: { danger: true },
+      onOk: () => router.push(routes.products.index),
+    });
+  };
+
   const onSubmit = handleSubmit(async (values) => {
+    if (isBundle && bundleComponents.length === 0) {
+      message.error("Vui lòng thêm ít nhất một thành phần cho combo");
+      return;
+    }
+
     // Tắt chế độ nhiều phiên bản thì giữ lại đúng phiên bản đang được đánh dấu
     // mặc định — không phải dòng đầu tiên, vì người dùng có thể đã khai N dòng
     // rồi mới đổi ý.
@@ -233,6 +273,28 @@ export function ProductCreateForm({ productType }: { productType: ProductType })
         toImageInputs(values.images),
       );
 
+      let bundleComponentsSaved = true;
+      if (isBundle) {
+        const bundleVariant = defaultVariantOf(product);
+        if (!bundleVariant) {
+          bundleComponentsSaved = false;
+        } else {
+          try {
+            await setBundleItems(
+              bundleVariant.id,
+              bundleComponents.map((item, position) => ({
+                componentVariantId: item.variant.id,
+                quantity: item.quantity,
+                position,
+                isOptional: item.isOptional,
+              })),
+            );
+          } catch {
+            bundleComponentsSaved = false;
+          }
+        }
+      }
+
       // Mô tả chi tiết phải lưu sau vì CreateProductDto không nhận `description`.
       // Lỗi ở bước này không làm hỏng sản phẩm đã tạo — chỉ cảnh báo rồi đưa
       // người dùng sang tab mô tả để lưu lại.
@@ -248,6 +310,9 @@ export function ProductCreateForm({ productType }: { productType: ProductType })
       message.success(`Đã tạo ${PRODUCT_TYPE_LABEL[productType].toLowerCase()} "${product.name}"`);
       if (!descriptionSaved) {
         message.warning("Sản phẩm đã tạo nhưng chưa lưu được mô tả chi tiết, vui lòng lưu lại.");
+      }
+      if (!bundleComponentsSaved) {
+        message.warning("Combo đã tạo nhưng chưa lưu được thành phần, vui lòng lưu lại ở tab Thành phần combo.");
       }
 
       // Combo chưa có thành phần là combo vô nghĩa nên đẩy thẳng sang tab đó
@@ -271,7 +336,7 @@ export function ProductCreateForm({ productType }: { productType: ProductType })
         ]}
         extra={
           <>
-            <Button onClick={() => router.push(routes.products.index)} disabled={submitting}>
+            <Button onClick={handleCancel} disabled={submitting}>
               Huỷ
             </Button>
             <Button type="primary" htmlType="submit" loading={submitting}>
@@ -281,9 +346,9 @@ export function ProductCreateForm({ productType }: { productType: ProductType })
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
-          <section className="bg-card border-line shadow-card space-y-4 rounded-lg border p-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,440px)]">
+        <div>
+          <section className="bg-card border-line shadow-card flex h-full flex-col gap-4 rounded-lg border p-4">
             <h3 className="text-fg font-semibold">Thông tin chung</h3>
 
             <TextField
@@ -339,63 +404,13 @@ export function ProductCreateForm({ productType }: { productType: ProductType })
               placeholder="Mô tả ngắn về sản phẩm, chính sách bảo hành..."
               maxLength={500}
               disabled={submitting}
+              className="resizable-short-description flex min-h-0 flex-1 flex-col [&_.ant-input-textarea]:min-h-0 [&_.ant-input-textarea]:flex-1 [&_.ant-input]:min-h-full!"
             />
           </section>
 
-          <section className="bg-card border-line shadow-card space-y-4 rounded-lg border p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-fg font-semibold">Mô tả chi tiết</h3>
-              {!descriptionOpen && (
-                <Button size="small" icon={<Plus size={14} />} onClick={() => setDescriptionOpen(true)}>
-                  Thêm mô tả chi tiết
-                </Button>
-              )}
-            </div>
-
-            {descriptionOpen ? (
-              <>
-                <RichTextField
-                  name="description"
-                  control={control}
-                  minHeight={320}
-                  disabled={submitting}
-                  placeholder="Soạn mô tả chi tiết, thông số nổi bật, chính sách bảo hành..."
-                />
-                <p className="text-muted text-xs">
-                  Mô tả chi tiết được lưu ngay sau khi sản phẩm được tạo.
-                </p>
-              </>
-            ) : (
-              <p className="text-muted text-sm">
-                Nội dung hiển thị ở trang chi tiết sản phẩm trên cửa hàng. Có thể bỏ qua và
-                soạn sau.
-              </p>
-            )}
-          </section>
-
-          <section className="bg-card border-line shadow-card space-y-4 rounded-lg border p-4">
-            <h3 className="text-fg font-semibold">Ảnh sản phẩm</h3>
-            <ImageUploadField
-              name="images"
-              control={control}
-              maxCount={8}
-              crop
-              disabled={submitting}
-              helpText="Ảnh đầu tiên là ảnh đại diện."
-              rules={{
-                validate: (value) =>
-                  (Array.isArray(value) && value.length > 0) ||
-                  "Vui lòng chọn ít nhất một ảnh sản phẩm",
-              }}
-            />
-          </section>
-
-          <section className="bg-card border-line shadow-card space-y-4 rounded-lg border p-4">
-            <SpecListField control={control} name="specs" disabled={submitting} />
-          </section>
         </div>
 
-        <section className="bg-card border-line shadow-card h-fit space-y-5 rounded-lg border p-4">
+        <section className="bg-card border-line shadow-card space-y-5 rounded-lg border p-4">
           <h3 className="text-fg font-semibold">
             {isBundle ? "Combo & giá bán" : isService ? "Giá dịch vụ" : "Giá & tồn kho"}
           </h3>
@@ -470,6 +485,71 @@ export function ProductCreateForm({ productType }: { productType: ProductType })
           )}
         </section>
       </div>
+
+      <div className="mt-4 space-y-4">
+        <section className="bg-card border-line shadow-card space-y-4 rounded-lg border p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-fg font-semibold">Mô tả chi tiết</h3>
+              {!descriptionOpen && (
+                <p className="text-muted mt-1 text-sm">
+                  Có thể bổ sung sau; nội dung này hiển thị ở trang chi tiết trên cửa hàng.
+                </p>
+              )}
+            </div>
+            {!descriptionOpen && (
+              <Button size="small" icon={<Plus size={14} />} onClick={() => setDescriptionOpen(true)}>
+                Thêm mô tả chi tiết
+              </Button>
+            )}
+          </div>
+
+          {descriptionOpen && (
+            <>
+              <RichTextField
+                name="description"
+                control={control}
+                minHeight={320}
+                disabled={submitting}
+                placeholder="Soạn mô tả chi tiết, thông số nổi bật, chính sách bảo hành..."
+              />
+              <p className="text-muted text-xs">Mô tả chi tiết được lưu ngay sau khi sản phẩm được tạo.</p>
+            </>
+          )}
+        </section>
+
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(340px,0.8fr)_minmax(0,1.2fr)]">
+          <section className="bg-card border-line shadow-card space-y-4 rounded-lg border p-4">
+            <h3 className="text-fg font-semibold">Ảnh sản phẩm</h3>
+            <ImageUploadField
+              name="images"
+              control={control}
+              maxCount={8}
+              crop
+              disabled={submitting}
+              helpText="Ảnh đầu tiên là ảnh đại diện."
+              rules={{
+                validate: (value) =>
+                  (Array.isArray(value) && value.length > 0) ||
+                  "Vui lòng chọn ít nhất một ảnh sản phẩm",
+              }}
+            />
+          </section>
+
+          <section className="bg-card border-line shadow-card space-y-4 rounded-lg border p-4">
+            <SpecListField control={control} name="specs" disabled={submitting} />
+          </section>
+        </div>
+      </div>
+
+      {isBundle && (
+        <BundleComponentsField
+          items={bundleComponents}
+          disabled={submitting}
+          onAdd={() => setBundlePickerOpen(true)}
+          onChange={setBundleComponents}
+        />
+      )}
 
       {showVariantTable && (
         <section className="bg-card border-line shadow-card mt-4 space-y-3 rounded-lg border p-4">
@@ -655,7 +735,96 @@ export function ProductCreateForm({ productType }: { productType: ProductType })
           )}
         </section>
       )}
+
+      {isBundle && (
+        <VariantPickerModal
+          open={bundlePickerOpen}
+          excludeVariantIds={bundleComponents.map((item) => item.variant.id)}
+          onClose={() => setBundlePickerOpen(false)}
+          onPick={addBundleComponent}
+        />
+      )}
     </form>
+  );
+}
+
+function BundleComponentsField({
+  items,
+  disabled,
+  onAdd,
+  onChange,
+}: {
+  items: BundleComponentDraft[];
+  disabled: boolean;
+  onAdd: () => void;
+  onChange: (items: BundleComponentDraft[]) => void;
+}) {
+  const updateItem = (index: number, patch: Partial<BundleComponentDraft>) => {
+    onChange(items.map((item, position) => (position === index ? { ...item, ...patch } : item)));
+  };
+
+  return (
+    <section className="bg-card border-line shadow-card mt-4 space-y-4 rounded-lg border p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-fg font-semibold">Thành phần combo</h3>
+          <p className="text-muted text-sm">Chọn hàng hoá và phiên bản sẽ bán cùng trong combo.</p>
+        </div>
+        <Button icon={<Plus size={16} />} disabled={disabled} onClick={onAdd}>
+          Thêm thành phần
+        </Button>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="border-line rounded-md border border-dashed px-4 py-6 text-center">
+          <p className="text-fg text-sm font-medium">Chưa có thành phần</p>
+          <p className="text-muted mt-1 text-sm">Combo cần ít nhất một hàng hoá hoặc phiên bản.</p>
+        </div>
+      ) : (
+        <div className="divide-line overflow-hidden rounded-md border border-line divide-y">
+          {items.map((item, index) => (
+            <div key={item.variant.id} className="flex flex-wrap items-center gap-3 px-3 py-3">
+              <div className="min-w-48 flex-1">
+                <p className="text-fg truncate text-sm font-medium">{item.productName}</p>
+                <p className="text-muted truncate text-xs">
+                  {item.variant.sku}
+                  {item.variant.name ? ` · ${item.variant.name}` : ""}
+                </p>
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <span className="text-muted">SL</span>
+                <InputNumber
+                  value={item.quantity}
+                  min={1}
+                  disabled={disabled}
+                  className="w-20"
+                  onChange={(quantity) => updateItem(index, { quantity: quantity ?? 1 })}
+                />
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <span className="text-muted">Quà tặng</span>
+                <Switch
+                  size="small"
+                  checked={item.isOptional}
+                  disabled={disabled}
+                  onChange={(isOptional) => updateItem(index, { isOptional })}
+                />
+              </label>
+              <Tooltip title="Gỡ khỏi combo">
+                <Button
+                  type="text"
+                  danger
+                  disabled={disabled}
+                  icon={<Trash2 size={16} />}
+                  onClick={() => onChange(items.filter((_, position) => position !== index))}
+                  aria-label={`Gỡ ${item.variant.sku} khỏi combo`}
+                />
+              </Tooltip>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

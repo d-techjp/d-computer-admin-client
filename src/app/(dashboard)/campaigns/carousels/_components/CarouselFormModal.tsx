@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
-import { App, Button, Modal, Tag, Tooltip } from "antd";
+import { App, Button, Modal, Tooltip } from "antd";
 import { Copy, ExternalLink, ImageOff, RefreshCw } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
 
@@ -38,7 +38,6 @@ interface CarouselFormValues {
   description?: string;
   imageUrl?: string;
   itemLimit: number;
-  displaySortOrder: number;
   isActive: boolean;
   search?: string;
   categoryId?: string;
@@ -60,7 +59,6 @@ const EMPTY_FORM: CarouselFormValues = {
   description: "",
   imageUrl: "",
   itemLimit: CAROUSEL_DEFAULT_LIMIT,
-  displaySortOrder: 0,
   isActive: true,
   search: "",
   includeSubCategories: false,
@@ -78,7 +76,6 @@ function toFormValues(carousel: Carousel): CarouselFormValues {
     description: carousel.description ?? "",
     imageUrl: carousel.imageUrl ?? "",
     itemLimit: carousel.itemLimit,
-    displaySortOrder: carousel.sortOrder,
     isActive: carousel.isActive,
     search: carousel.filters.search ?? "",
     categoryId: carousel.filters.categoryId,
@@ -200,7 +197,6 @@ export function CarouselFormModal({
         imageUrl: values.imageUrl || undefined,
         filters: toFilter(values),
         itemLimit: values.itemLimit,
-        sortOrder: values.displaySortOrder,
         isActive: values.isActive,
       };
 
@@ -307,32 +303,22 @@ export function CarouselFormModal({
               helpText="URL ảnh banner của carousel."
             />
 
-            <div className="grid grid-cols-2 gap-3">
-              <TextField
-                name="itemLimit"
-                control={control}
-                label="Số sản phẩm trang chủ"
-                type="number"
-                min={1}
-                max={CAROUSEL_MAX_LIMIT}
-                rules={{
-                  required: "Vui lòng nhập số sản phẩm",
-                  min: { value: 1, message: "Tối thiểu 1 sản phẩm" },
-                  max: {
-                    value: CAROUSEL_MAX_LIMIT,
-                    message: `Tối đa ${CAROUSEL_MAX_LIMIT} sản phẩm`,
-                  },
-                }}
-              />
-              <TextField
-                name="displaySortOrder"
-                control={control}
-                label="Thứ tự"
-                type="number"
-                min={0}
-                helpText="Nhỏ đứng trước"
-              />
-            </div>
+            <TextField
+              name="itemLimit"
+              control={control}
+              label="Số sản phẩm trang chủ"
+              type="number"
+              min={1}
+              max={CAROUSEL_MAX_LIMIT}
+              rules={{
+                required: "Vui lòng nhập số sản phẩm",
+                min: { value: 1, message: "Tối thiểu 1 sản phẩm" },
+                max: {
+                  value: CAROUSEL_MAX_LIMIT,
+                  message: `Tối đa ${CAROUSEL_MAX_LIMIT} sản phẩm`,
+                },
+              }}
+            />
 
             <SwitchField
               name="isActive"
@@ -457,41 +443,58 @@ export function CarouselFormModal({
                   </p>
                 )}
 
-                <ul className="border-line max-h-[300px] divide-y overflow-auto rounded-lg border lg:max-h-[calc(100vh-440px)]">
-                  {preview.items.map((product, index) => (
-                    <li key={product.id} className="flex items-center gap-3 p-2">
-                      <span className="text-muted w-5 shrink-0 text-center text-xs">
-                        {index + 1}
-                      </span>
-                      <div className="bg-subtle relative h-12 w-12 shrink-0 overflow-hidden rounded">
-                        {product.thumbnail ? (
-                          <Image
-                            src={product.thumbnail}
-                            alt=""
-                            fill
-                            unoptimized
-                            sizes="48px"
-                            className="object-cover"
-                          />
-                        ) : (
-                          <span className="text-muted flex h-full w-full items-center justify-center">
-                            <ImageOff size={16} />
+                <div className="border-line rounded-xl border bg-subtle p-2">
+                  <div className="mb-2 flex items-center justify-between px-1 py-0.5">
+                    <span className="text-fg text-xs font-semibold">Sản phẩm sẽ hiển thị</span>
+                    <span className="bg-brand/10 text-brand rounded-full px-2 py-0.5 text-[11px] font-semibold">
+                      {preview.items.length} sản phẩm
+                    </span>
+                  </div>
+                  <ul className="max-h-[300px] space-y-2 overflow-auto pr-1 lg:max-h-[calc(100vh-480px)]">
+                    {preview.items.map((product, index) => (
+                      <li
+                        key={product.id}
+                        className="border-line flex items-center gap-3 rounded-lg border bg-card p-2.5 shadow-sm"
+                      >
+                        <span className="bg-brand/10 text-brand flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold">
+                          {index + 1}
+                        </span>
+                        <div className="bg-subtle border-line relative h-14 w-14 shrink-0 overflow-hidden rounded-md border">
+                          {product.thumbnail ? (
+                            <Image
+                              src={product.thumbnail}
+                              alt=""
+                              fill
+                              unoptimized
+                              sizes="56px"
+                              className="object-cover"
+                            />
+                          ) : (
+                            <span className="text-muted flex h-full w-full items-center justify-center">
+                              <ImageOff size={18} />
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-fg truncate text-sm font-semibold">{product.name}</p>
+                          <span className="border-line text-muted mt-1 inline-flex max-w-full truncate rounded border bg-subtle px-1.5 py-0.5 text-[11px]">
+                            {product.brandName || "Chưa có thương hiệu"}
                           </span>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-fg truncate text-sm">{product.name}</p>
-                        <p className="text-muted truncate text-xs">
-                          {product.brandName || "—"}
-                          {product.minPrice !== undefined
-                            ? ` · ${formatCurrency(product.minPrice)}`
-                            : ""}
-                        </p>
-                      </div>
-                      {product.isFeatured && <Tag color="gold">Nổi bật</Tag>}
-                    </li>
-                  ))}
-                </ul>
+                        </div>
+                        <div className="flex shrink-0 flex-col items-end gap-1">
+                          <span className="text-fg text-sm font-semibold">
+                            {product.minPrice !== undefined ? formatCurrency(product.minPrice) : "—"}
+                          </span>
+                          {product.isFeatured && (
+                            <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                              Nổi bật
+                            </span>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </>
             ) : (
               <p className="text-muted text-sm">

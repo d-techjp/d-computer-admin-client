@@ -181,6 +181,13 @@ textarea {
   resize: none !important;
 }
 
+/* Mô tả ngắn trong form sản phẩm có thể kéo cao hơn khi cần nhập nhiều nội dung. */
+.resizable-short-description textarea {
+  min-height: 100% !important;
+  resize: vertical !important;
+  overflow-y: auto !important;
+}
+
 /* Thanh cuộn mảnh cho vùng nội dung dài (sidebar, bảng cuộn ngang) */
 .scrollbar-thin {
   scrollbar-width: thin;

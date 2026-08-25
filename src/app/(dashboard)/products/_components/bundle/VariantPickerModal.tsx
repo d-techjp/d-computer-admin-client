@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { App, Empty, Input, Modal, Spin, Tag } from "antd";
-import { ImageOff, Search } from "lucide-react";
+import { Check, ImageOff, Search } from "lucide-react";
 
 import { listProducts } from "@/lib/api/products";
 import { listProductVariants } from "@/lib/api/variants";
@@ -140,11 +140,12 @@ export function VariantPickerModal({
         </p>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="border-line rounded-md border">
-            <div className="border-line text-muted border-b px-3 py-2 text-xs font-medium">
-              Sản phẩm
+          <div className="border-line overflow-hidden rounded-lg border bg-card">
+            <div className="border-line bg-subtle flex items-center justify-between border-b px-3 py-2.5">
+              <span className="text-fg text-sm font-semibold">Sản phẩm</span>
+              <span className="text-muted text-xs">Chọn để xem phiên bản</span>
             </div>
-            <div className="max-h-80 overflow-y-auto">
+            <div className="max-h-80 space-y-2 overflow-y-auto p-2">
               {loadingProducts ? (
                 <div className="flex justify-center py-8">
                   <Spin />
@@ -164,34 +165,41 @@ export function VariantPickerModal({
                       type="button"
                       onClick={() => void selectProduct(product)}
                       className={cn(
-                        "hover:bg-subtle flex w-full items-center gap-2 px-3 py-2 text-left transition",
-                        selected?.id === product.id && "bg-brand/5",
+                        "group flex w-full cursor-pointer items-center gap-3 rounded-lg border p-2.5 text-left transition",
+                        selected?.id === product.id
+                          ? "border-brand bg-brand/5 shadow-sm"
+                          : "border-transparent hover:border-line hover:bg-subtle",
                       )}
                     >
-                      <div className="bg-subtle border-line relative h-8 w-8 shrink-0 overflow-hidden rounded border">
+                      <div className="bg-subtle border-line relative h-11 w-11 shrink-0 overflow-hidden rounded-md border">
                         {thumbnail ? (
                           <Image
                             src={thumbnail}
                             alt={product.name}
                             fill
                             unoptimized
-                            sizes="32px"
+                            sizes="44px"
                             className="object-cover"
                           />
                         ) : (
                           <span className="text-muted flex h-full items-center justify-center">
-                            <ImageOff size={12} />
+                            <ImageOff size={16} />
                           </span>
                         )}
                       </div>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium">{product.name}</span>
-                        <span className="text-muted block text-xs">
+                        <span className="text-muted mt-1 block text-xs">
                           {product.hasVariants
                             ? `${product.variants.length} phiên bản`
                             : (defaultVariantOf(product)?.sku ?? "—")}
                         </span>
                       </span>
+                      {selected?.id === product.id && (
+                        <span className="bg-brand text-inverse flex h-5 w-5 shrink-0 items-center justify-center rounded-full">
+                          <Check size={13} strokeWidth={3} />
+                        </span>
+                      )}
                     </button>
                   );
                 })
@@ -199,11 +207,13 @@ export function VariantPickerModal({
             </div>
           </div>
 
-          <div className="border-line rounded-md border">
-            <div className="border-line text-muted border-b px-3 py-2 text-xs font-medium">
-              {selected ? `Phiên bản của ${selected.name}` : "Chọn sản phẩm ở cột bên trái"}
+          <div className="border-line overflow-hidden rounded-lg border bg-card">
+            <div className="border-line bg-subtle border-b px-3 py-2.5">
+              <span className="text-fg block truncate text-sm font-semibold">
+                {selected ? `Phiên bản của ${selected.name}` : "Chọn sản phẩm ở cột bên trái"}
+              </span>
             </div>
-            <div className="max-h-80 overflow-y-auto">
+            <div className="max-h-80 space-y-2 overflow-y-auto p-2">
               {loadingVariants ? (
                 <div className="flex justify-center py-8">
                   <Spin />
@@ -223,6 +233,7 @@ export function VariantPickerModal({
               ) : (
                 variants.map((variant) => {
                   const excluded = excludeVariantIds.includes(variant.id);
+                  const thumbnail = variant.thumbnail ?? selected.thumbnail ?? selected.images[0];
                   return (
                     <button
                       key={variant.id}
@@ -230,25 +241,47 @@ export function VariantPickerModal({
                       disabled={excluded}
                       onClick={() => pick(variant)}
                       className={cn(
-                        "hover:bg-subtle flex w-full items-center justify-between gap-2 px-3 py-2 text-left transition",
-                        excluded && "cursor-not-allowed opacity-50 hover:bg-transparent",
+                        "flex w-full cursor-pointer items-center gap-3 rounded-lg border p-2.5 text-left transition",
+                        excluded
+                          ? "cursor-not-allowed border-transparent bg-subtle/60 opacity-60"
+                          : "border-transparent hover:border-brand/40 hover:bg-brand/5",
                       )}
                     >
-                      <span className="min-w-0">
+                      <span className="bg-subtle border-line relative h-11 w-11 shrink-0 overflow-hidden rounded-md border">
+                        {thumbnail ? (
+                          <Image
+                            src={thumbnail}
+                            alt={variant.name}
+                            fill
+                            unoptimized
+                            sizes="44px"
+                            className="object-cover"
+                          />
+                        ) : (
+                          <span className="text-muted flex h-full items-center justify-center">
+                            <ImageOff size={16} />
+                          </span>
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium">{variant.name}</span>
-                        <span className="text-muted block text-xs">{variant.sku}</span>
+                        <span className="border-line text-muted mt-1 inline-flex rounded border bg-card px-1.5 py-0.5 font-mono text-[11px]">
+                          {variant.sku}
+                        </span>
                       </span>
                       <span className="shrink-0 text-right">
-                        <span className="block text-sm">{formatCurrency(variant.price)}</span>
+                        <span className="text-fg block text-sm font-semibold">
+                          {formatCurrency(variant.price)}
+                        </span>
                         {excluded ? (
-                          <Tag color="default" className="m-0 mt-0.5">
+                          <Tag color="default" className="m-0 mt-1">
                             Đã thêm
                           </Tag>
                         ) : (
                           <span
                             className={cn(
-                              "text-muted block text-xs",
-                              variant.stock <= 0 && "text-danger",
+                              "text-muted mt-1 block text-xs",
+                              variant.stock <= 0 && "text-danger font-medium",
                             )}
                           >
                             Tồn {formatNumber(variant.stock)}

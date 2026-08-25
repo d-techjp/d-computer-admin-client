@@ -1,15 +1,28 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { App, Button, Input, Select, Space, Tag, Tooltip } from "antd";
+import type { DragEndEvent, Modifier } from "@dnd-kit/core";
+import { DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { App, Button, Input, Select, Space, Switch, Tag, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { Copy, ExternalLink, Pencil, Plus, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, Pencil, Plus, Save, Trash2 } from "lucide-react";
 
-import { DataTable } from "@/components/common/DataTable";
+import { DataTable, DragHandle, SortableRow } from "@/components/common/DataTable";
 import { PageHeader } from "@/components/common/PageHeader";
 import { FormItemLayout } from "@/components/form/FormItemLayout";
 import { SearchFilterBar } from "@/components/form/SearchFilterBar";
-import { deleteCarousel, listCarousels } from "@/lib/api/carousels";
+import {
+  deleteCarousel,
+  listCarousels,
+  reorderCarousels,
+  updateCarousel,
+} from "@/lib/api/carousels";
 import { loadCatalogOptions } from "@/lib/api/catalog";
 import { carouselViewAllUrl } from "@/lib/carouselFilter";
 import { formatNumber } from "@/lib/utils";
@@ -18,7 +31,7 @@ import {
   CAROUSEL_SORT_ORDER_LABEL,
   type Carousel,
 } from "@/types/carousel";
-import { DEFAULT_PAGE_SIZE, type SelectOption } from "@/types/common";
+import type { SelectOption } from "@/types/common";
 import { PRODUCT_TYPE_LABEL } from "@/types/product";
 
 import { CarouselFormModal } from "./_components/CarouselFormModal";
@@ -29,6 +42,16 @@ interface CarouselFilters {
 }
 
 const DEFAULT_FILTERS: CarouselFilters = { keyword: "" };
+
+/** Danh sách carousel luôn nhỏ và cần kéo-thả toàn cục nên nạp một lần, không phân trang. */
+const FETCH_LIMIT = 100;
+
+// Kéo-thả chỉ theo chiều dọc — chặn dòng đang kéo trôi ngang theo con trỏ.
+const restrictToVerticalAxis: Modifier = ({ transform }) => ({ ...transform, x: 0 });
+
+// Không để dnd-kit tự cuộn vùng ngang của Ant Design Table khi kéo sát mép;
+// cuộn trang theo chiều dọc vẫn hoạt động nên không còn hiện tượng giật liên tục.
+const canAutoScroll = (element: Element) => !element.classList.contains("ant-table-content");
 
 const STATUS_OPTIONS: SelectOption<string>[] = [
   { label: "Đang hiển thị", value: "true" },
@@ -86,23 +109,33 @@ function filterSummary(
 export default function CarouselsPage() {
   const { message, modal } = App.useApp();
   const [rows, setRows] = useState<Carousel[]>([]);
-  const [total, setTotal] = useState(0);
+  const [savedOrderIds, setSavedOrderIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [savingOrder, setSavingOrder] = useState(false);
+  const [updatingVisibilityId, setUpdatingVisibilityId] = useState<string>();
   const [filters, setFilters] = useState<CarouselFilters>(DEFAULT_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState<CarouselFilters>(DEFAULT_FILTERS);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<Carousel>();
   const [modalOpen, setModalOpen] = useState(false);
   const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([]);
   const [brandOptions, setBrandOptions] = useState<SelectOption[]>([]);
 
+  // Kéo-thả cần thấy đúng thứ tự TOÀN CỤC — đang lọc thì bảng chỉ còn một phần
+  // carousel, kéo-thả lúc đó sẽ ghi đè sai thứ tự của những dòng đang bị ẩn.
+  // Nên chỉ cho sắp xếp khi không áp dụng bộ lọc nào.
+  const filtersActive = !!appliedFilters.keyword || appliedFilters.isActive !== undefined;
+
+  const orderDirty = useMemo(
+    () => rows.map((row) => row.id).join() !== savedOrderIds.join(),
+    [rows, savedOrderIds],
+  );
+
   const loadRows = useCallback(async () => {
     setLoading(true);
     try {
       const response = await listCarousels({
-        page,
-        limit: pageSize,
+        page: 1,
+        limit: FETCH_LIMIT,
         search: appliedFilters.keyword,
         isActive: appliedFilters.isActive,
         sortBy: "sortOrder",
@@ -110,17 +143,45 @@ export default function CarouselsPage() {
         withProductCount: true,
       });
       setRows(response.data);
-      setTotal(response.total);
+      setSavedOrderIds(response.data.map((carousel) => carousel.id));
     } catch (error) {
       message.error(error instanceof Error ? error.message : "Không tải được danh sách carousel");
     } finally {
       setLoading(false);
     }
-  }, [appliedFilters.isActive, appliedFilters.keyword, message, page, pageSize]);
+  }, [appliedFilters.isActive, appliedFilters.keyword, message]);
 
   useEffect(() => {
     queueMicrotask(() => void loadRows());
   }, [loadRows]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = useCallback(({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    setRows((prev) => {
+      const from = prev.findIndex((item) => item.id === active.id);
+      const to = prev.findIndex((item) => item.id === over.id);
+      if (from === -1 || to === -1) return prev;
+      return arrayMove(prev, from, to);
+    });
+  }, []);
+
+  const handleSaveOrder = async () => {
+    setSavingOrder(true);
+    try {
+      await reorderCarousels(rows.map((row, index) => ({ id: row.id, sortOrder: index })));
+      setSavedOrderIds(rows.map((row) => row.id));
+      message.success("Đã cập nhật thứ tự hiển thị");
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Không cập nhật được thứ tự");
+    } finally {
+      setSavingOrder(false);
+    }
+  };
 
   // Dropdown danh mục/thương hiệu dùng cho cả form lẫn phần tóm tắt bộ lọc,
   // nên nạp một lần ở trang thay vì mỗi lần mở modal.
@@ -166,8 +227,29 @@ export default function CarouselsPage() {
     });
   };
 
+  const handleToggleVisibility = useCallback(
+    async (record: Carousel, isActive: boolean) => {
+      setUpdatingVisibilityId(record.id);
+      try {
+        await updateCarousel(record.id, { isActive });
+        message.success(isActive ? "Đã bật hiển thị carousel" : "Đã tắt hiển thị carousel");
+        await loadRows();
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : "Không cập nhật được trạng thái carousel");
+      } finally {
+        setUpdatingVisibilityId(undefined);
+      }
+    },
+    [loadRows, message],
+  );
+
   const columns = useMemo<ColumnsType<Carousel>>(
     () => [
+      // Kéo-thả chỉ khả dụng khi đang xem toàn bộ danh sách (không lọc) — xem
+      // giải thích ở `filtersActive`.
+      ...(filtersActive
+        ? []
+        : [{ key: "sort", width: 40, align: "center" as const, render: () => <DragHandle /> }]),
       {
         title: "Carousel",
         dataIndex: "name",
@@ -208,15 +290,20 @@ export default function CarouselsPage() {
           </div>
         ),
       },
-      { title: "Thứ tự", dataIndex: "sortOrder", width: 80, align: "right" },
       {
-        title: "Trạng thái",
+        title: "Hiển thị",
         dataIndex: "isActive",
         width: 120,
-        render: (isActive: boolean) => (
-          <Tag color={isActive ? "green" : "default"}>
-            {isActive ? "Đang hiển thị" : "Đang tắt"}
-          </Tag>
+        align: "center",
+        render: (isActive: boolean, record) => (
+          <Switch
+            checked={isActive}
+            checkedChildren="Bật"
+            unCheckedChildren="Tắt"
+            loading={updatingVisibilityId === record.id}
+            onChange={(checked) => void handleToggleVisibility(record, checked)}
+            aria-label={`${isActive ? "Tắt" : "Bật"} hiển thị carousel ${record.name}`}
+          />
         ),
       },
       {
@@ -266,16 +353,23 @@ export default function CarouselsPage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [brandOptions, categoryOptions, message, modal, loadRows],
+    [
+      brandOptions,
+      categoryOptions,
+      filtersActive,
+      handleToggleVisibility,
+      loadRows,
+      message,
+      modal,
+      updatingVisibilityId,
+    ],
   );
 
   const search = () => {
-    setPage(1);
     setAppliedFilters({ ...filters });
   };
 
   const reset = () => {
-    setPage(1);
     setFilters(DEFAULT_FILTERS);
     setAppliedFilters(DEFAULT_FILTERS);
   };
@@ -286,9 +380,29 @@ export default function CarouselsPage() {
         title="Carousel sản phẩm"
         description="Các khối sản phẩm trên storefront — lấy hàng theo bộ lọc, không gắn tay từng sản phẩm"
         extra={
-          <Button type="primary" icon={<Plus size={16} />} onClick={() => openModal()}>
-            Tạo carousel
-          </Button>
+          <Space>
+            <Tooltip
+              title={
+                filtersActive
+                  ? "Bỏ lọc để sắp xếp lại thứ tự"
+                  : orderDirty
+                    ? undefined
+                    : "Kéo tay cầm ở đầu hàng để đổi thứ tự"
+              }
+            >
+              <Button
+                icon={<Save size={16} />}
+                disabled={filtersActive || !orderDirty}
+                loading={savingOrder}
+                onClick={() => void handleSaveOrder()}
+              >
+                Cập nhật thứ tự
+              </Button>
+            </Tooltip>
+            <Button type="primary" icon={<Plus size={16} />} onClick={() => openModal()}>
+              Tạo carousel
+            </Button>
+          </Space>
         }
       />
 
@@ -321,22 +435,24 @@ export default function CarouselsPage() {
         </FormItemLayout>
       </SearchFilterBar>
 
-      <DataTable<Carousel>
-        rowKey="id"
-        columns={columns}
-        dataSource={rows}
-        loading={loading}
-        emptyText="Chưa có carousel nào"
-        pagination={{
-          current: page,
-          pageSize,
-          total,
-          onChange: (nextPage, nextPageSize) => {
-            setPage(nextPage);
-            setPageSize(nextPageSize);
-          },
-        }}
-      />
+      <DndContext
+        sensors={sensors}
+        modifiers={[restrictToVerticalAxis]}
+        autoScroll={{ canScroll: canAutoScroll }}
+        onDragEnd={filtersActive ? undefined : handleDragEnd}
+      >
+        <SortableContext items={rows.map((row) => row.id)} strategy={verticalListSortingStrategy}>
+          <DataTable<Carousel>
+            rowKey="id"
+            columns={columns}
+            dataSource={rows}
+            loading={loading}
+            emptyText="Chưa có carousel nào"
+            pagination={false}
+            components={filtersActive ? undefined : { body: { row: SortableRow } }}
+          />
+        </SortableContext>
+      </DndContext>
 
       <CarouselFormModal
         open={modalOpen}

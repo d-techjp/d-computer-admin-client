@@ -245,13 +245,15 @@ export default function TiktokVideosPage() {
       {
         title: "Hiển thị",
         dataIndex: "isActive",
-        width: 100,
+        width: 120,
         align: "center",
         render: (isActive: boolean, record) => (
           <Switch
-            size="small"
             checked={isActive}
+            checkedChildren="Bật"
+            unCheckedChildren="Tắt"
             onChange={(checked) => void handleToggleActive(record, checked)}
+            aria-label={`${isActive ? "Tắt" : "Bật"} hiển thị video ${record.videoUrl}`}
           />
         ),
       },
