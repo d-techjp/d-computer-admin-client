@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { App, Alert, Button, InputNumber, Skeleton, Switch, Tooltip } from "antd";
+import { App, Alert, Button, InputNumber, Skeleton, Switch, Tag, Tooltip } from "antd";
 import { GripVertical, ImageOff, Plus, RotateCcw, Trash2 } from "lucide-react";
 
 import { PermissionGate } from "@/components/auth/PermissionGate";
@@ -35,6 +35,8 @@ interface ItemDraft {
   trackInventory: boolean;
   quantity: number;
   isOptional: boolean;
+  /** Sản phẩm của thành phần này đã bị xoá mềm — vẫn còn trong combo vì soft-delete không dọn quan hệ */
+  productDeleted: boolean;
 }
 
 // Kéo | Ảnh | Tên | Tồn | Số lượng | Quà tặng | Xoá
@@ -109,6 +111,7 @@ export function BundleTab({ product }: { product: Product }) {
           trackInventory: item.componentVariant?.trackInventory ?? true,
           quantity: item.quantity,
           isOptional: item.isOptional,
+          productDeleted: !!item.componentVariant?.product?.deletedAt,
         }));
         setItems(drafts);
         setSaved(drafts);
@@ -168,6 +171,7 @@ export function BundleTab({ product }: { product: Product }) {
           trackInventory: variant.trackInventory,
           quantity: 1,
           isOptional: false,
+          productDeleted: false,
         },
       ];
     });
@@ -226,6 +230,7 @@ export function BundleTab({ product }: { product: Product }) {
     .filter((item) => !item.isOptional)
     .reduce((sum, item) => sum + item.price * item.quantity, 0);
   const customerSaving = componentsTotal - bundleVariant.price;
+  const deletedCount = items.filter((item) => item.productDeleted).length;
 
   return (
     <div className="space-y-4">
@@ -235,6 +240,15 @@ export function BundleTab({ product }: { product: Product }) {
           showIcon
           message="Combo chưa có thành phần"
           description="Combo không có thành phần thì không tính được tồn kho và không bán được. Thêm ít nhất một thành phần."
+        />
+      )}
+
+      {deletedCount > 0 && (
+        <Alert
+          type="error"
+          showIcon
+          message="Combo đang chứa thành phần đã bị xoá"
+          description={`${deletedCount} thành phần (đánh dấu "Đã xoá" bên dưới) không còn tồn tại — gỡ khỏi combo rồi bấm "Lưu thành phần".`}
         />
       )}
 
@@ -339,8 +353,18 @@ export function BundleTab({ product }: { product: Product }) {
                     </div>
 
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">
+                      <div
+                        className={cn(
+                          "truncate text-sm font-medium",
+                          item.productDeleted && "text-muted line-through",
+                        )}
+                      >
                         {item.productName || item.variantName}
+                        {item.productDeleted && (
+                          <Tag color="red" className="ml-2 align-middle">
+                            Đã xoá
+                          </Tag>
+                        )}
                       </div>
                       <div className="text-muted truncate text-xs">
                         {item.sku}

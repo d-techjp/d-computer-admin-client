@@ -55,7 +55,7 @@ export function OptionsTab({
   const [saving, setSaving] = useState(false);
   const [generateOpen, setGenerateOpen] = useState(false);
 
-  // Nạp lại bản nháp khi tab cha tải lại sản phẩm. Chỉnh state ngay trong lúc
+  // Nạp lại Chưa bán khi tab cha tải lại sản phẩm. Chỉnh state ngay trong lúc
   // render thay vì trong effect để không đẻ thêm một lượt render thừa.
   const [syncedProduct, setSyncedProduct] = useState(product);
   if (syncedProduct !== product) {

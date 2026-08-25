@@ -63,6 +63,7 @@ function toProductRef(value: unknown): VariantProductRef | undefined {
     name: asString(record.name),
     thumbnail: asOptionalString(record.thumbnail),
     productType: asOptionalString(record.productType),
+    deletedAt: asOptionalString(record.deletedAt),
   };
 }
 

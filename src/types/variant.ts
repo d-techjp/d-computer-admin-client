@@ -77,6 +77,8 @@ export interface VariantProductRef {
   name: string;
   thumbnail?: string;
   productType?: string;
+  /** Có giá trị = sản phẩm đã bị xoá mềm — soft-delete không dọn `product_bundle_items` */
+  deletedAt?: string;
 }
 
 /** Một dòng thành phần của combo (`product_bundle_items`) */

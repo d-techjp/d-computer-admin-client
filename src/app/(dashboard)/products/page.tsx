@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { App, Button, Input, Popconfirm, Select, Space, Table, Tooltip } from "antd";
+import { App, Button, Input, Select, Space, Table, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { ExternalLink, ImageOff, Layers, Pencil, Plus, Trash2, Warehouse } from "lucide-react";
 
@@ -22,8 +22,9 @@ import { SearchFilterBar } from "@/components/form/SearchFilterBar";
 import routes from "@/config/routes";
 import { useUrlSearchParams } from "@/hooks/useUrlSearchParams";
 import { brandOptionsFrom, categoryOptionsFrom, listBrands, listCategories } from "@/lib/api/catalog";
-import { deleteProduct, listProducts } from "@/lib/api/products";
+import { listProducts } from "@/lib/api/products";
 import { listProductVariants } from "@/lib/api/variants";
+import { confirmDeleteProduct } from "@/lib/confirmDeleteProduct";
 import { formatCurrency, formatNumber } from "@/lib/utils";
 import { DEFAULT_PAGE_SIZE, type SelectOption } from "@/types/common";
 import {
@@ -121,7 +122,7 @@ function clientProductDetailUrl(product: Product) {
 }
 
 export default function ProductsPage() {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const { searchParams, write } = useUrlSearchParams();
   const { filters: appliedFilters, page, pageSize } = useMemo(
     () => filtersFromSearchParams(searchParams),
@@ -213,16 +214,15 @@ export default function ProductsPage() {
   };
 
   const handleDelete = useCallback(
-    async (record: Product) => {
-      try {
-        await deleteProduct(record.id);
-        message.success(`Đã xoá ${record.name}`);
-        await loadRows();
-      } catch (error) {
-        message.error(error instanceof Error ? error.message : "Không xoá được sản phẩm");
-      }
+    (record: Product) => {
+      void confirmDeleteProduct({
+        modal,
+        message,
+        product: { id: record.id, name: record.name },
+        onDeleted: loadRows,
+      });
     },
-    [loadRows, message],
+    [loadRows, message, modal],
   );
 
   const loadVariants = useCallback(
@@ -534,18 +534,15 @@ export default function ProductsPage() {
                   <Button type="text" size="small" icon={<Pencil size={16} />} />
                 </Link>
               </Tooltip>
-              <Popconfirm
-                title="Xoá sản phẩm này?"
-                description="Xoá mềm, kéo theo toàn bộ biến thể."
-                okText="Xoá"
-                cancelText="Huỷ"
-                okButtonProps={{ danger: true }}
-                onConfirm={() => handleDelete(record)}
-              >
-                <Tooltip title="Xoá">
-                  <Button type="text" size="small" danger icon={<Trash2 size={16} />} />
-                </Tooltip>
-              </Popconfirm>
+              <Tooltip title="Xoá">
+                <Button
+                  type="text"
+                  size="small"
+                  danger
+                  icon={<Trash2 size={16} />}
+                  onClick={() => handleDelete(record)}
+                />
+              </Tooltip>
             </Space>
           );
         },

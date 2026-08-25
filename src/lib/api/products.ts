@@ -157,6 +157,17 @@ export function deleteProduct(id: string) {
 }
 
 /**
+ * `GET /products/{id}/bundle-usage` — combo (productType = bundle) đang dùng
+ * sản phẩm này làm thành phần. Gọi trước khi xoá để cảnh báo: xoá xong các
+ * combo này tự chuyển về `draft` (chưa bán) vì thiếu thành phần.
+ */
+export function fetchProductBundleUsage(id: string) {
+  return apiFetch<unknown>(`/products/${id}/bundle-usage`).then((payload) =>
+    asArray(payload).map(toProduct),
+  );
+}
+
+/**
  * `POST /products` — **bắt buộc kèm `variants` tối thiểu 1 phần tử**: sản
  * phẩm không có biến thể là hàng không bán được, backend không có API tạo
  * sản phẩm rỗng.

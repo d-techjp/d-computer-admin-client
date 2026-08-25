@@ -110,7 +110,7 @@ export function GeneralTab({
           shortDescription: values.shortDescription.trim(),
           specifications: toSpecifications(values.specs),
           // Trạng thái out_of_stock do backend tự suy ra từ tồn kho, ở đây chỉ
-          // bật/tắt giữa đang bán và bản nháp.
+          // bật/tắt giữa đang bán và Chưa bán.
           status: values.active ? "active" : "draft",
           isFeatured: values.isFeatured,
           categoryId: values.categoryId,
@@ -207,7 +207,7 @@ export function GeneralTab({
                 control={control}
                 label="Cho phép bán"
                 checkedLabel="Đang bán"
-                uncheckedLabel="Bản nháp"
+                uncheckedLabel="Chưa bán"
                 disabled={submitting}
               />
               <CheckboxField

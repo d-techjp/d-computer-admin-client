@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { App, Alert, Button, Popconfirm, Skeleton, Tabs } from "antd";
+import { App, Alert, Button, Skeleton, Tabs } from "antd";
 import { ArrowLeft, Trash2 } from "lucide-react";
 
 import { ProductStatusTag, ProductTypeTag } from "@/components/common/StatusTag";
 import routes from "@/config/routes";
-import { deleteProduct, fetchProduct } from "@/lib/api/products";
+import { confirmDeleteProduct } from "@/lib/confirmDeleteProduct";
+import { fetchProduct } from "@/lib/api/products";
 import type { Product } from "@/types/product";
 import type { ProductVariant } from "@/types/variant";
 
@@ -37,7 +38,7 @@ const DEFAULT_TAB: TabKey = "general";
 export function ProductWorkspace({ productId }: { productId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
 
   const [product, setProduct] = useState<Product>();
   const [loading, setLoading] = useState(true);
@@ -88,14 +89,14 @@ export function ProductWorkspace({ productId }: { productId: string }) {
     );
   }, []);
 
-  const handleDelete = async () => {
-    try {
-      await deleteProduct(productId);
-      message.success("Đã xoá sản phẩm");
-      router.push(routes.products.index);
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : "Không xoá được sản phẩm");
-    }
+  const handleDelete = () => {
+    if (!product) return;
+    void confirmDeleteProduct({
+      modal,
+      message,
+      product: { id: product.id, name: product.name },
+      onDeleted: () => router.push(routes.products.index),
+    });
   };
 
   const tabItems = useMemo(() => {
@@ -200,18 +201,9 @@ export function ProductWorkspace({ productId }: { productId: string }) {
                 thêm một lớp box rỗng khi tab không có nút nào */}
             <div ref={setActionsSlot} className="contents" />
 
-            <Popconfirm
-              title="Xoá sản phẩm này?"
-              description="Xoá mềm, kéo theo toàn bộ biến thể."
-              okText="Xoá"
-              cancelText="Huỷ"
-              okButtonProps={{ danger: true }}
-              onConfirm={handleDelete}
-            >
-              <Button danger icon={<Trash2 size={16} />}>
-                Xoá sản phẩm
-              </Button>
-            </Popconfirm>
+            <Button danger icon={<Trash2 size={16} />} onClick={handleDelete}>
+              Xoá sản phẩm
+            </Button>
           </div>
         </div>
       </div>

@@ -24,7 +24,7 @@ export interface Post {
 }
 
 export const POST_STATUS_LABEL: Record<PostStatus, string> = {
-  draft: "Bản nháp",
+  draft: "Chưa bán",
   published: "Đã đăng",
   archived: "Lưu trữ",
 };

@@ -100,7 +100,7 @@ export interface Brand {
 
 export const PRODUCT_STATUS_LABEL: Record<ProductStatus, string> = {
   active: "Đang bán",
-  draft: "Bản nháp",
+  draft: "Chưa bán",
   out_of_stock: "Hết hàng",
   archived: "Lưu trữ",
 };

@@ -320,7 +320,7 @@ export function ProductCreateForm({ productType }: { productType: ProductType })
                 control={control}
                 label="Cho phép bán"
                 checkedLabel="Đang bán"
-                uncheckedLabel="Bản nháp"
+                uncheckedLabel="Chưa bán"
                 disabled={submitting}
               />
               <CheckboxField
