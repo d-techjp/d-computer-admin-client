@@ -143,7 +143,7 @@ export function ProductWorkspace({ productId }: { productId: string }) {
       items.push({
         key: "bundle",
         label: "Thành phần combo",
-        children: <BundleTab product={product} />,
+        children: <BundleTab product={product} onVariantsChange={applyVariants} />,
       });
     }
 

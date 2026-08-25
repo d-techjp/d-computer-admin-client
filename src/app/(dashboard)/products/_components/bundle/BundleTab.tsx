@@ -8,6 +8,7 @@ import { GripVertical, ImageOff, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { PermissionGate } from "@/components/auth/PermissionGate";
 import {
   fetchBundleItems,
+  fetchVariant,
   fetchVariantAvailability,
   setBundleItems,
   type BundleItemInput,
@@ -17,6 +18,7 @@ import { defaultVariantOf, type Product } from "@/types/product";
 import {
   BUNDLE_INVENTORY_POLICY_HINT,
   BUNDLE_INVENTORY_POLICY_LABEL,
+  type ProductVariant,
   type VariantAvailability,
 } from "@/types/variant";
 
@@ -62,7 +64,14 @@ function sameDrafts(a: ItemDraft[], b: ItemDraft[]) {
  * nó và combo lồng combo (picker chỉ hiện hàng hoá thường, loại sẵn biến thể
  * combo), và mỗi thành phần chỉ một dòng (chọn trùng thì tăng `quantity`).
  */
-export function BundleTab({ product }: { product: Product }) {
+export function BundleTab({
+  product,
+  onVariantsChange,
+}: {
+  product: Product;
+  /** Đẩy `stock` combo vừa tính lại sang `product.variants` ở tab cha — để tab "Giá & kho" thấy đúng ngay, không phải tải lại trang. */
+  onVariantsChange: (variants: ProductVariant[]) => void;
+}) {
   const { message } = App.useApp();
   const bundleVariant = defaultVariantOf(product);
 
@@ -199,6 +208,16 @@ export function BundleTab({ product }: { product: Product }) {
       setSaved(items);
       message.success("Đã lưu thành phần combo");
       await loadAvailability(bundleVariant.id);
+
+      // Backend vừa tính lại `stock` của biến thể combo (nếu dùng chính sách
+      // suy ra từ thành phần) — nạp lại đúng biến thể này và đẩy lên tab cha
+      // để "Giá & kho" thấy số mới ngay, không cần tải lại cả trang.
+      const freshVariant = await fetchVariant(bundleVariant.id);
+      onVariantsChange(
+        product.variants.map((variant) =>
+          variant.id === freshVariant.id ? freshVariant : variant,
+        ),
+      );
     } catch (error) {
       message.error(error instanceof Error ? error.message : "Không lưu được thành phần combo");
     } finally {
