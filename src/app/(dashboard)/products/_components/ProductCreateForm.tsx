@@ -26,7 +26,7 @@ import type { ImageInput } from "@/lib/api/formData";
 import { createProduct, updateProductDescription } from "@/lib/api/products";
 import { uploadImage } from "@/lib/api/uploads";
 import { setBundleItems, type VariantPayload } from "@/lib/api/variants";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn, currencyInputFormatter, currencyInputParser, formatCurrency } from "@/lib/utils";
 import type { SelectOption } from "@/types/common";
 import {
   DEFAULT_SPEC_LABELS,
@@ -641,6 +641,8 @@ export function ProductCreateForm({ productType }: { productType: ProductType })
                           status={fieldState.error ? "error" : undefined}
                           min={0}
                           step={1000}
+                          formatter={currencyInputFormatter}
+                          parser={currencyInputParser}
                           className="w-full"
                         />
                       )}
@@ -649,14 +651,30 @@ export function ProductCreateForm({ productType }: { productType: ProductType })
                       control={control}
                       name={`variants.${index}.compareAtPrice`}
                       render={({ field }) => (
-                        <InputNumber {...field} disabled={submitting} min={0} step={1000} className="w-full" />
+                        <InputNumber
+                          {...field}
+                          disabled={submitting}
+                          min={0}
+                          step={1000}
+                          formatter={currencyInputFormatter}
+                          parser={currencyInputParser}
+                          className="w-full"
+                        />
                       )}
                     />
                     <Controller
                       control={control}
                       name={`variants.${index}.costPrice`}
                       render={({ field }) => (
-                        <InputNumber {...field} disabled={submitting} min={0} step={1000} className="w-full" />
+                        <InputNumber
+                          {...field}
+                          disabled={submitting}
+                          min={0}
+                          step={1000}
+                          formatter={currencyInputFormatter}
+                          parser={currencyInputParser}
+                          className="w-full"
+                        />
                       )}
                     />
                     <Controller

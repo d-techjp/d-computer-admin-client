@@ -25,7 +25,13 @@ import {
   type BulkVariantUpdateItem,
   type VariantPayload,
 } from "@/lib/api/variants";
-import { cn, formatCurrency, formatNumber } from "@/lib/utils";
+import {
+  cn,
+  currencyInputFormatter,
+  currencyInputParser,
+  formatCurrency,
+  formatNumber,
+} from "@/lib/utils";
 import type { Product } from "@/types/product";
 import { isLowStock, optionLabelOf, type ProductVariant } from "@/types/variant";
 
@@ -52,7 +58,7 @@ interface VariantDraft {
 // dọc, input của các cột còn lại bị đẩy xuống thấp hơn input tên, nhìn lệch
 // hàng. Căn theo đỉnh thì mọi ô nhập luôn ngang hàng nhau.
 const ROW_GRID =
-  "grid grid-cols-[20px_44px_minmax(160px,1.4fr)_minmax(140px,1.2fr)_repeat(3,minmax(110px,1fr))_minmax(120px,1fr)_minmax(90px,0.7fr)_72px_64px_44px] items-start gap-2";
+  "grid grid-cols-[20px_44px_minmax(160px,1.4fr)_minmax(140px,1.2fr)_repeat(3,minmax(180px,1fr))_minmax(120px,1fr)_minmax(90px,0.7fr)_72px_64px_44px] items-start gap-2";
 
 function toDraft(variant: ProductVariant): VariantDraft {
   return {
@@ -597,7 +603,9 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
                     disabled={!canManage || saving}
                     min={0}
                     step={1000}
-                    className="w-full"
+                    formatter={currencyInputFormatter}
+                    parser={currencyInputParser}
+                    className="w-[180px] min-w-[180px]"
                     onChange={(price) => patchDraft(variant.id, { price: price ?? undefined })}
                     aria-label={`Giá bán của ${variant.sku}`}
                   />
@@ -607,7 +615,9 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
                     disabled={!canManage || saving}
                     min={0}
                     step={1000}
-                    className="w-full"
+                    formatter={currencyInputFormatter}
+                    parser={currencyInputParser}
+                    className="w-[180px] min-w-[180px]"
                     onChange={(value) =>
                       patchDraft(variant.id, { compareAtPrice: value ?? undefined })
                     }
@@ -619,7 +629,9 @@ export function VariantsTab({ product, onVariantsChange, onReload }: VariantsTab
                     disabled={!canManage || saving}
                     min={0}
                     step={1000}
-                    className="w-full"
+                    formatter={currencyInputFormatter}
+                    parser={currencyInputParser}
+                    className="w-[180px] min-w-[180px]"
                     onChange={(value) => patchDraft(variant.id, { costPrice: value ?? undefined })}
                     aria-label={`Giá vốn của ${variant.sku}`}
                   />

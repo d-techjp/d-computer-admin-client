@@ -5,6 +5,7 @@ import { App, Input, InputNumber, Modal, Select } from "antd";
 
 import { FormItemLayout } from "@/components/form/FormItemLayout";
 import { createVariant } from "@/lib/api/variants";
+import { currencyInputFormatter, currencyInputParser } from "@/lib/utils";
 import type { Product } from "@/types/product";
 import type { ProductVariant } from "@/types/variant";
 
@@ -187,6 +188,8 @@ export function AddVariantModal({
               onChange={(price) => patch({ price: price ?? undefined })}
               min={0}
               step={1000}
+              formatter={currencyInputFormatter}
+              parser={currencyInputParser}
               className="w-full"
             />
           </FormItemLayout>
@@ -196,6 +199,8 @@ export function AddVariantModal({
               onChange={(value) => patch({ compareAtPrice: value ?? undefined })}
               min={0}
               step={1000}
+              formatter={currencyInputFormatter}
+              parser={currencyInputParser}
               className="w-full"
             />
           </FormItemLayout>

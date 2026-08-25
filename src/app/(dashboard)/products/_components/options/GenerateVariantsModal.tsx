@@ -5,7 +5,7 @@ import { App, Alert, Input, InputNumber, Modal, Tag } from "antd";
 
 import { FormItemLayout } from "@/components/form/FormItemLayout";
 import { generateVariants } from "@/lib/api/variants";
-import { cn } from "@/lib/utils";
+import { cn, currencyInputFormatter, currencyInputParser } from "@/lib/utils";
 import type { Product } from "@/types/product";
 
 /** Trên ngưỡng này thì cảnh báo trước khi sinh — 50 dòng đã là bảng rất dài */
@@ -163,6 +163,8 @@ export function GenerateVariantsModal({
               onChange={(value) => setPrice(value ?? undefined)}
               min={0}
               step={1000}
+              formatter={currencyInputFormatter}
+              parser={currencyInputParser}
               className="w-full"
             />
           </FormItemLayout>
