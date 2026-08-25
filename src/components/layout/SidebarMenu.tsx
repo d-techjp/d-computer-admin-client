@@ -13,6 +13,7 @@ import {
   type MenuItemConfig,
 } from "@/config/menuConfig";
 import { usePermissions } from "@/hooks/usePermissions";
+import { SIDEBAR_WIDTH_COLLAPSED } from "@/store/useLayoutStore";
 
 type AntdMenuItem = Required<MenuProps>["items"][number];
 
@@ -101,6 +102,7 @@ export function SidebarMenu({
       }
       onClick={onNavigate}
       className="border-e-0! bg-transparent!"
+      style={{ width: collapsed ? SIDEBAR_WIDTH_COLLAPSED : undefined }}
     />
   );
 }

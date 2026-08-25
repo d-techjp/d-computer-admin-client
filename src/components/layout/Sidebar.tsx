@@ -46,9 +46,9 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
   const mode = useThemeStore((state) => state.mode);
 
   return (
-    <div className="bg-sidebar flex h-full flex-col">
+    <div className="bg-sidebar flex h-full flex-col overflow-hidden">
       <Logo collapsed={collapsed} />
-      <div className="scrollbar-thin flex-1 overflow-y-auto py-2">
+      <div className="scrollbar-thin flex-1 overflow-x-hidden overflow-y-auto py-2">
         <SidebarMenu
           collapsed={collapsed}
           theme={mode}

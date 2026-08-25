@@ -211,9 +211,13 @@ export default function CategoriesPage() {
       cancelText: "Huỷ",
       okButtonProps: { danger: true },
       onOk: async () => {
-        await deleteCategory(record.id);
-        message.success("Đã xoá danh mục");
-        await Promise.all([loadRows(), loadParentOptions()]);
+        try {
+          await deleteCategory(record.id);
+          message.success("Đã xoá danh mục");
+          await Promise.all([loadRows(), loadParentOptions()]);
+        } catch (error) {
+          message.error(error instanceof Error ? error.message : "Không xoá được danh mục");
+        }
       },
     });
   };

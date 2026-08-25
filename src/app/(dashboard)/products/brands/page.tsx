@@ -115,9 +115,13 @@ export default function BrandsPage() {
       cancelText: "Huỷ",
       okButtonProps: { danger: true },
       onOk: async () => {
-        await deleteBrand(record.id);
-        message.success("Đã xoá thương hiệu");
-        await loadRows();
+        try {
+          await deleteBrand(record.id);
+          message.success("Đã xoá thương hiệu");
+          await loadRows();
+        } catch (error) {
+          message.error(error instanceof Error ? error.message : "Không xoá được thương hiệu");
+        }
       },
     });
   };

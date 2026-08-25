@@ -76,12 +76,12 @@ export const menuConfig: MenuItemConfig[] = [
   },
   {
     key: "products",
-    label: "Quản lý sản phẩm",
+    label: "Danh mục & Sản phẩm",
     icon: Package,
     children: [
       {
         key: "products-list",
-        label: "Danh sách sản phẩm",
+        label: "Sản phẩm",
         icon: Boxes,
         path: routes.products.index,
       },
