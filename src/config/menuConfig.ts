@@ -115,7 +115,7 @@ export const menuConfig: MenuItemConfig[] = [
         key: "campaigns-tiktok",
         label: "Tiktok",
         icon: Video,
-        path: routes.campaigns.tiktok,
+        path: routes.campaigns.tiktok, 
       },
       {
         key: "campaigns-site-info",
