@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { App, Button, Tooltip } from "antd";
-import { ImagePlus, Star, Trash2, Upload } from "lucide-react";
+import { ImagePlus, Pencil, Star, Trash2, Upload } from "lucide-react";
 import type { FieldValues } from "react-hook-form";
 import { useController } from "react-hook-form";
 
@@ -32,6 +32,10 @@ export interface UploadedImage {
 interface ImageUploadFieldProps<T extends FieldValues> extends BaseFieldProps<T> {
   maxCount?: number;
   minCount?: number;
+  /** Biến thể thumbnail gọn cho logo/icon trong các form dạng danh sách. */
+  compact?: boolean;
+  /** Ảnh bắt buộc giữ lại; nút thao tác chỉ cho thay ảnh hiện tại. */
+  replaceOnly?: boolean;
   /**
    * Bắt buộc cắt ảnh mới chọn về khung 4:3 chuẩn ảnh sản phẩm trước khi vào
    * preview. Chỉ bật ở ảnh sản phẩm/biến thể — ảnh bìa bài viết dùng 16:9 nên
@@ -59,11 +63,14 @@ export function ImageUploadField<T extends FieldValues>({
   className,
   maxCount = 6,
   minCount = 0,
+  compact = false,
+  replaceOnly = false,
   crop = false,
 }: ImageUploadFieldProps<T>) {
   const { message, modal } = App.useApp();
   const { cropFiles, cropperNode } = useProductImageCropper();
   const inputRef = useRef<HTMLInputElement>(null);
+  const replaceIndexRef = useRef<number | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
 
@@ -72,10 +79,10 @@ export function ImageUploadField<T extends FieldValues>({
   const images = useMemo<UploadedImage[]>(() => field.value ?? [], [field.value]);
 
   const addFiles = useCallback(
-    async (fileList: FileList | null) => {
+    async (fileList: FileList | null, replaceIndex?: number) => {
       if (!fileList?.length) return;
 
-      const room = maxCount - images.length;
+      const room = replaceIndex === undefined ? maxCount - images.length : 1;
       if (room <= 0) {
         message.warning(`Chỉ được tải lên tối đa ${maxCount} ảnh`);
         return;
@@ -110,7 +117,13 @@ export function ImageUploadField<T extends FieldValues>({
         })),
       );
 
-      if (accepted.length) field.onChange([...images, ...accepted]);
+      if (accepted.length) {
+        field.onChange(
+          replaceIndex === undefined
+            ? [...images, ...accepted]
+            : images.map((image, index) => (index === replaceIndex ? accepted[0] : image)),
+        );
+      }
     },
     [crop, cropFiles, field, images, maxCount, message],
   );
@@ -174,7 +187,8 @@ export function ImageUploadField<T extends FieldValues>({
                   setDragIndex(null);
                 }}
                 className={cn(
-                  "bg-card w-36 shrink-0 overflow-hidden rounded-lg border transition-colors",
+                  "bg-card shrink-0 overflow-hidden rounded-lg border transition-colors",
+                  compact ? "w-20" : "w-36",
                   isCover ? "border-brand" : "border-line",
                   dragIndex === index && "opacity-40",
                 )}
@@ -185,7 +199,8 @@ export function ImageUploadField<T extends FieldValues>({
                   onDragStart={() => setDragIndex(index)}
                   onDragEnd={() => setDragIndex(null)}
                   className={cn(
-                    "bg-subtle relative h-28 w-full",
+                    "bg-subtle relative w-full",
+                    compact ? "h-16" : "h-28",
                     !disabled && "cursor-grab active:cursor-grabbing",
                   )}
                 >
@@ -194,7 +209,7 @@ export function ImageUploadField<T extends FieldValues>({
                     alt={image.name}
                     fill
                     unoptimized
-                    sizes="144px"
+                    sizes={compact ? "80px" : "144px"}
                     className="object-cover"
                   />
 
@@ -234,26 +249,42 @@ export function ImageUploadField<T extends FieldValues>({
                     {index + 1}/{images.length}
                   </span>
 
-                  <Tooltip
-                    title={
-                      canRemove
-                        ? "Xoá ảnh"
-                        : `Phải giữ lại ít nhất ${minCount} ảnh — thêm ảnh mới trước rồi mới xoá ảnh này`
-                    }
-                  >
-                    {/* span để tooltip vẫn hiện khi nút bị disable */}
-                    <span className="inline-flex">
+                  {replaceOnly ? (
+                    <Tooltip title="Thay ảnh">
                       <Button
                         size="small"
                         type="text"
-                        danger
-                        disabled={disabled || !canRemove}
-                        aria-label="Xoá ảnh"
-                        icon={<Trash2 size={15} />}
-                        onClick={() => confirmRemoveAt(index)}
+                        disabled={disabled}
+                        aria-label="Thay ảnh"
+                        icon={<Pencil size={15} />}
+                        onClick={() => {
+                          replaceIndexRef.current = index;
+                          inputRef.current?.click();
+                        }}
                       />
-                    </span>
-                  </Tooltip>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip
+                      title={
+                        canRemove
+                          ? "Xoá ảnh"
+                          : `Phải giữ lại ít nhất ${minCount} ảnh — thêm ảnh mới trước rồi mới xoá ảnh này`
+                      }
+                    >
+                      {/* span để tooltip vẫn hiện khi nút bị disable */}
+                      <span className="inline-flex">
+                        <Button
+                          size="small"
+                          type="text"
+                          danger
+                          disabled={disabled || !canRemove}
+                          aria-label="Xoá ảnh"
+                          icon={<Trash2 size={15} />}
+                          onClick={() => confirmRemoveAt(index)}
+                        />
+                      </span>
+                    </Tooltip>
+                  )}
                 </figcaption>
               </figure>
             );
@@ -298,7 +329,9 @@ export function ImageUploadField<T extends FieldValues>({
           multiple={maxCount > 1}
           hidden
           onChange={(event) => {
-            void addFiles(event.target.files);
+            const replaceIndex = replaceIndexRef.current;
+            replaceIndexRef.current = null;
+            void addFiles(event.target.files, replaceIndex ?? undefined);
             // Reset để chọn lại đúng file vừa xoá vẫn kích hoạt onChange
             event.target.value = "";
           }}

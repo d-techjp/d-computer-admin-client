@@ -1,5 +1,6 @@
 import {
   Boxes,
+  Building2,
   FolderTree,
   GalleryHorizontalEnd,
   LayoutDashboard,
@@ -101,7 +102,7 @@ export const menuConfig: MenuItemConfig[] = [
   },
   {
     key: "campaigns",
-    label: "Chiến dịch",
+    label: "Hiển thị",
     icon: Megaphone,
     children: [
       {
@@ -115,6 +116,12 @@ export const menuConfig: MenuItemConfig[] = [
         label: "Tiktok",
         icon: Video,
         path: routes.campaigns.tiktok,
+      },
+      {
+        key: "campaigns-site-info",
+        label: "Thông tin cửa hàng",
+        icon: Building2,
+        path: routes.campaigns.siteInfo,
       },
     ],
   },

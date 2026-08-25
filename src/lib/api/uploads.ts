@@ -5,7 +5,7 @@
  */
 import { apiFetch } from "./client";
 
-export type UploadFolder = "products" | "articles" | "tiktok";
+export type UploadFolder = "products" | "articles" | "tiktok" | "site-settings";
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)

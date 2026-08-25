@@ -28,9 +28,10 @@ export const ROUTE_PERMISSIONS: RoutePermissionRule[] = [
   { path: routes.products.brands, permission: "product.brand.manage" },
   { path: routes.products.index, permission: "product.manage" },
 
-  // Rule dài hơn thắng (xem SORTED_RULES), nên tiktok tách quyền riêng khỏi
-  // `/campaigns` — carousel và tiktok là hai module độc lập ở backend.
+  // Rule dài hơn thắng (xem SORTED_RULES), nên tiktok/site-info tách quyền
+  // riêng khỏi `/campaigns` — mỗi mục là một module độc lập ở backend.
   { path: routes.campaigns.tiktok, permission: "campaign.tiktok.manage" },
+  { path: routes.campaigns.siteInfo, permission: "site.settings.manage" },
   { path: routes.campaigns.index, permission: "product.carousel.manage" },
 
   { path: routes.orders.index, permission: "orders.manage" },
