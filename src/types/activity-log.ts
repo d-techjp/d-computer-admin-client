@@ -18,6 +18,7 @@ export const ACTIVITY_STATUS_LABEL: Record<ActivityStatus, string> = {
 
 /** Các `action` backend đang ghi — dùng cho nhãn, màu và gợi ý trong ô lọc */
 export const ACTIVITY_ACTION_LABEL: Record<string, string> = {
+  register: "Đăng ký tài khoản",
   login: "Đăng nhập",
   login_failed: "Đăng nhập thất bại",
   logout: "Đăng xuất",
@@ -26,6 +27,10 @@ export const ACTIVITY_ACTION_LABEL: Record<string, string> = {
   create: "Tạo mới",
   update: "Cập nhật",
   delete: "Xoá",
+  restore: "Khôi phục",
+  order_placed: "Đặt hàng",
+  order_status_changed: "Đổi trạng thái đơn hàng",
+  order_cancelled: "Huỷ đơn hàng",
   publish: "Xuất bản",
   unpublish: "Gỡ xuất bản",
   adjust_stock: "Điều chỉnh tồn kho",
@@ -57,6 +62,8 @@ export const ACTIVITY_RESOURCE_LABEL: Record<string, string> = {
   order: "Đơn hàng",
   order_payment: "Thanh toán đơn hàng",
   carousel: "Carousel",
+  tiktok_video: "Video TikTok",
+  site_settings: "Thông tin cửa hàng",
   inventory_import: "Nhập kho",
   inventory_export: "Xuất kho",
   upload: "Tệp tải lên",

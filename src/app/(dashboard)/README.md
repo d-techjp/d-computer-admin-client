@@ -15,7 +15,7 @@ Next.js App Router. Không sao chép logic nghiệp vụ — chỉ giữ lại p
 | State | Zustand (theme, trạng thái layout) |
 | Form | React Hook Form |
 | Chart | ApexCharts (`react-apexcharts`) |
-| Dữ liệu | Mock nội bộ + `fakeFetch` mô phỏng độ trễ/phân trang/lọc |
+| Dữ liệu | `d-computer-service` qua `src/lib/api/*` (fetch + envelope + bóc lỗi) |
 
 ## Chạy dự án
 
@@ -64,9 +64,9 @@ src/
 ├── app/(auth)/login/    # trang đăng nhập, không có sidebar
 ├── components/          # layout / common / form / charts
 ├── config/              # routes.ts, menuConfig.ts
-├── hooks/useListQuery   # logic chung của mọi trang danh sách
-├── lib/                 # fakeFetch, analytics, theme, màu chart
-├── mock/                # fixture domain máy tính/điện tử
+├── hooks/               # permission, query string, chặn rời trang khi chưa lưu
+├── lib/api/             # client HTTP + mapper theo module backend
+├── lib/                 # theme, màu chart, upload ảnh, tiện ích format
 ├── store/               # zustand: theme, layout
 └── types/
 ```
@@ -79,7 +79,9 @@ tối `#1d2636`): đạt dải sáng, ngưỡng chroma, tách biệt CVD ΔE 9.1
 thường 19.6. Màu trạng thái đơn hàng gán cố định theo thực thể nên lọc bớt trạng
 thái không làm đổi màu phần còn lại.
 
-## Lưu ý khi nối backend thật
+## Nối backend
 
-Chỉ cần thay thân các hàm trong `src/lib/fakeFetch.ts` bằng lời gọi HTTP —
-chữ ký giữ nguyên, các trang không phải sửa.
+`NEXT_PUBLIC_API_BASE_URL` trỏ thẳng vào nhánh admin của API
+(`http://localhost:3030/api/v1/admin`), nên đường dẫn trong `src/lib/api/*`
+KHÔNG lặp lại tiền tố `/admin`. Mọi response đi qua envelope
+`{ success, data }` và được `apiFetch` bóc sẵn.

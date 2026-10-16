@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Button, Table } from "antd";
+import { App, Button, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import dayjs from "dayjs";
 import {
   AlertTriangle,
   ArrowRight,
@@ -24,21 +25,20 @@ import {
   type DateRangeSearchValue,
 } from "@/components/form/DatePickerPresetRange";
 import routes from "@/config/routes";
-import {
-  buildRevenueSeries,
-  buildStatusBreakdown,
-  buildSummary,
-  buildTopProducts,
-} from "@/lib/analytics";
+import { getDashboardOverview } from "@/lib/api/dashboard";
+import { listOrders } from "@/lib/api/orders";
+import { toIsoEnd, toIsoStart } from "@/lib/api/pagination";
 import { orderStatusColors } from "@/lib/chart-colors";
 import {
   formatCompactCurrency,
   formatCurrency,
   formatNumber,
 } from "@/lib/utils";
-import { orders } from "@/mock/orders";
 import { useThemeStore } from "@/store/useThemeStore";
-import type { Order } from "@/types/order";
+import type { DashboardOverview } from "@/types/dashboard";
+import { ORDER_STATUS_LABEL, type Order } from "@/types/order";
+
+const RECENT_ORDERS_LIMIT = 6;
 
 const recentOrderColumns: ColumnsType<Order> = [
   {
@@ -67,27 +67,98 @@ const recentOrderColumns: ColumnsType<Order> = [
 ];
 
 export default function DashboardPage() {
+  const { message } = App.useApp();
   const mode = useThemeStore((state) => state.mode);
   const [range, setRange] = useState<DateRangeSearchValue>(DEFAULT_DATE_RANGE);
+  const [overview, setOverview] = useState<DashboardOverview>();
+  const [loading, setLoading] = useState(true);
+  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+  const [recentLoading, setRecentLoading] = useState(true);
 
-  const from = range.from ?? DEFAULT_DATE_RANGE.from!;
-  const to = range.to ?? DEFAULT_DATE_RANGE.to!;
+  const from = toIsoStart(range.from ?? DEFAULT_DATE_RANGE.from);
+  const to = toIsoEnd(range.to ?? DEFAULT_DATE_RANGE.to);
 
-  const summary = useMemo(() => buildSummary(from, to), [from, to]);
-  const revenueSeries = useMemo(() => buildRevenueSeries(from, to), [from, to]);
-  const statusBreakdown = useMemo(
-    () => buildStatusBreakdown(from, to),
-    [from, to],
-  );
-  const topProducts = useMemo(() => buildTopProducts(from, to), [from, to]);
+  /**
+   * Đổi khoảng ngày nhanh tay có thể để response cũ về sau response mới, nên
+   * mỗi lần gọi mang một số thứ tự và chỉ lần gọi mới nhất được ghi vào state.
+   */
+  const overviewRequestRef = useRef(0);
+
+  const loadOverview = useCallback(async () => {
+    const requestId = overviewRequestRef.current + 1;
+    overviewRequestRef.current = requestId;
+    setLoading(true);
+    try {
+      const data = await getDashboardOverview({ from, to });
+      if (overviewRequestRef.current !== requestId) return;
+      setOverview(data);
+    } catch (error) {
+      if (overviewRequestRef.current !== requestId) return;
+      message.error(
+        error instanceof Error ? error.message : "Không tải được số liệu tổng quan",
+      );
+    } finally {
+      if (overviewRequestRef.current === requestId) setLoading(false);
+    }
+  }, [from, to, message]);
+
+  useEffect(() => {
+    queueMicrotask(() => void loadOverview());
+  }, [loadOverview]);
+
+  // Đơn gần đây không phụ thuộc khoảng thời gian đang chọn — luôn là đơn mới nhất
+  // trên toàn hệ thống, nên tách khỏi lời gọi overview.
+  const loadRecentOrders = useCallback(async () => {
+    setRecentLoading(true);
+    try {
+      const result = await listOrders({
+        page: 1,
+        limit: RECENT_ORDERS_LIMIT,
+        sortBy: "createdAt",
+        sortOrder: "DESC",
+      });
+      setRecentOrders(result.data);
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : "Không tải được đơn hàng gần đây",
+      );
+    } finally {
+      setRecentLoading(false);
+    }
+  }, [message]);
+
+  useEffect(() => {
+    queueMicrotask(() => void loadRecentOrders());
+  }, [loadRecentOrders]);
+
+  const summary = overview?.summary;
+
+  const revenueSeries = useMemo(() => {
+    const points = overview?.revenueByDay ?? [];
+    return {
+      categories: points.map((point) => dayjs(point.date).format("DD/MM")),
+      revenue: points.map((point) => point.revenue),
+    };
+  }, [overview]);
 
   // Màu gắn cố định theo trạng thái nên lọc bớt cũng không đổi màu phần còn lại
-  const statusColors = useMemo(() => {
-    const map = orderStatusColors(mode);
-    return statusBreakdown.statuses.map((status) => map[status]);
-  }, [mode, statusBreakdown.statuses]);
+  const statusBreakdown = useMemo(() => {
+    const slices = overview?.statusBreakdown ?? [];
+    const colorMap = orderStatusColors(mode);
+    return {
+      labels: slices.map((slice) => ORDER_STATUS_LABEL[slice.status]),
+      series: slices.map((slice) => slice.count),
+      colors: slices.map((slice) => colorMap[slice.status]),
+    };
+  }, [mode, overview]);
 
-  const recentOrders = useMemo(() => orders.slice(0, 6), []);
+  const topProducts = useMemo(() => {
+    const items = overview?.topProducts ?? [];
+    return {
+      categories: items.map((item) => item.productName),
+      values: items.map((item) => item.revenue),
+    };
+  }, [overview]);
 
   return (
     <>
@@ -113,38 +184,48 @@ export default function DashboardPage() {
       <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="Doanh thu"
-          value={formatCompactCurrency(summary.revenue)}
+          value={formatCompactCurrency(summary?.revenue.value ?? 0)}
           icon={<Wallet size={18} />}
-          trend={{
-            value: Math.abs(summary.revenueTrend),
-            direction: summary.revenueTrend >= 0 ? "up" : "down",
-          }}
-          hint="so với kỳ trước"
+          loading={loading}
+          trend={
+            summary && {
+              value: Math.abs(summary.revenue.trend),
+              direction: summary.revenue.trend >= 0 ? "up" : "down",
+            }
+          }
+          hint="đơn đã hoàn tất, so với kỳ trước"
         />
         <StatCard
-          title="Số đơn hàng"
-          value={formatNumber(summary.orderCount)}
+          title="Số đơn hoàn tất"
+          value={formatNumber(summary?.orderCount.value ?? 0)}
           icon={<ShoppingCart size={18} />}
-          trend={{
-            value: Math.abs(summary.orderTrend),
-            direction: summary.orderTrend >= 0 ? "up" : "down",
-          }}
+          loading={loading}
+          trend={
+            summary && {
+              value: Math.abs(summary.orderCount.trend),
+              direction: summary.orderCount.trend >= 0 ? "up" : "down",
+            }
+          }
           hint="so với kỳ trước"
         />
         <StatCard
           title="Khách hàng mới"
-          value={formatNumber(summary.customerCount)}
+          value={formatNumber(summary?.newCustomerCount.value ?? 0)}
           icon={<UserRound size={18} />}
-          trend={{
-            value: Math.abs(summary.customerTrend),
-            direction: summary.customerTrend >= 0 ? "up" : "down",
-          }}
+          loading={loading}
+          trend={
+            summary && {
+              value: Math.abs(summary.newCustomerCount.trend),
+              direction: summary.newCustomerCount.trend >= 0 ? "up" : "down",
+            }
+          }
           hint="so với kỳ trước"
         />
         <StatCard
           title="Sản phẩm sắp hết"
-          value={formatNumber(summary.lowStockCount)}
+          value={formatNumber(summary?.lowStockCount ?? 0)}
           icon={<AlertTriangle size={18} />}
+          loading={loading}
           hint="cần nhập thêm hàng"
         />
       </div>
@@ -154,8 +235,9 @@ export default function DashboardPage() {
         <LineAreaChart
           className="xl:col-span-2"
           title="Doanh thu theo ngày"
-          description="Đơn đã huỷ không được tính vào doanh thu"
+          description="Chỉ tính đơn đã hoàn tất"
           area
+          loading={loading}
           series={[{ name: "Doanh thu", data: revenueSeries.revenue }]}
           categories={revenueSeries.categories}
           valueFormatter={formatCompactCurrency}
@@ -164,9 +246,11 @@ export default function DashboardPage() {
 
         <PieDonutChart
           title="Cơ cấu trạng thái đơn"
+          description="Tính cả đơn đã huỷ"
+          loading={loading}
           series={statusBreakdown.series}
           labels={statusBreakdown.labels}
-          colors={statusColors}
+          colors={statusBreakdown.colors}
           valueFormatter={(value) => `${formatNumber(value)} đơn`}
           height={300}
         />
@@ -178,6 +262,7 @@ export default function DashboardPage() {
           title="Sản phẩm bán chạy"
           description="Xếp theo doanh thu trong khoảng thời gian đã chọn"
           horizontal
+          loading={loading}
           series={[{ name: "Doanh thu", data: topProducts.values }]}
           categories={topProducts.categories}
           valueFormatter={formatCompactCurrency}
@@ -190,13 +275,14 @@ export default function DashboardPage() {
               Đơn hàng gần đây
             </h3>
             <p className="text-muted mt-0.5 text-xs">
-              6 đơn mới nhất trên toàn hệ thống
+              {RECENT_ORDERS_LIMIT} đơn mới nhất trên toàn hệ thống
             </p>
           </header>
 
           <Table<Order>
             rowKey="id"
             size="small"
+            loading={recentLoading}
             columns={recentOrderColumns}
             dataSource={recentOrders}
             pagination={false}

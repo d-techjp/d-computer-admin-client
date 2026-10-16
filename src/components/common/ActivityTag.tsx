@@ -15,13 +15,19 @@ import {
  * dùng màu mặc định thay vì không có màu nào.
  */
 const ACTION_COLOR: Record<string, string> = {
+  register: "cyan",
   login: "blue",
+  login_failed: "red",
   logout: "default",
   logout_all: "default",
   change_password: "purple",
   create: "green",
   update: "gold",
   delete: "red",
+  restore: "lime",
+  order_placed: "green",
+  order_status_changed: "gold",
+  order_cancelled: "red",
   publish: "green",
   unpublish: "orange",
   adjust_stock: "gold",
