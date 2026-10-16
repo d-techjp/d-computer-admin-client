@@ -25,6 +25,7 @@ import {
 } from "./parse";
 
 const ORDER_STATUSES = [
+  "awaiting_payment",
   "pending",
   "confirmed",
   "processing",
@@ -35,7 +36,7 @@ const ORDER_STATUSES = [
 ] as const;
 
 const PAYMENT_STATUSES = ["unpaid", "paid", "refunded", "failed"] as const;
-const PAYMENT_METHODS = ["cod", "bank_transfer", "credit_card", "e_wallet"] as const;
+const PAYMENT_METHODS = ["cod", "bank_transfer", "credit_card", "e_wallet", "stripe"] as const;
 
 export interface ListOrdersParams extends ApiListParams {
   userId?: string;
@@ -126,6 +127,9 @@ export function toOrder(value: unknown): Order {
     paymentStatus: asEnum(record.paymentStatus, PAYMENT_STATUSES, "unpaid"),
     paymentMethod: asEnum(record.paymentMethod, PAYMENT_METHODS, "cod"),
     note: asOptionalString(record.note),
+    paidAt: asOptionalString(record.paidAt),
+    stripeCheckoutSessionId: asOptionalString(record.stripeCheckoutSessionId),
+    stripePaymentIntentId: asOptionalString(record.stripePaymentIntentId),
     createdAt: asIsoDate(record.createdAt ?? record.created_at),
     updatedAt: asOptionalString(record.updatedAt ?? record.updated_at),
   };

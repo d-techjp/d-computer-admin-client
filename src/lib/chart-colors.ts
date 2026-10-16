@@ -66,6 +66,7 @@ export function chromeFor(mode: ThemeMode) {
  * Đây là màu categorical (định danh), không dùng lẫn với status palette.
  */
 export const ORDER_STATUS_COLOR_INDEX = {
+  awaiting_payment: 5, // đơn Stripe chưa trả tiền
   pending: 3, // vàng
   confirmed: 0, // brand blue
   processing: 6, // violet

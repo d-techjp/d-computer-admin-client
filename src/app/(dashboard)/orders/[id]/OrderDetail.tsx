@@ -16,6 +16,7 @@ import {
   ORDER_STATUS_TRANSITIONS,
   PAYMENT_METHOD_LABEL,
   PAYMENT_STATUS_LABEL,
+  stripePaymentUrl,
   type Order,
   type OrderItem,
   type OrderStatus,
@@ -182,7 +183,15 @@ export function OrderDetail({ orderId }: { orderId: string }) {
       />
 
       <div className="bg-card border-line shadow-card mb-4 rounded-lg border p-4">
-        {isOutsideFlow ? (
+        {status === "awaiting_payment" ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <OrderStatusTag status={status} />
+            <span className="text-muted text-sm">
+              Khách chưa thanh toán xong trên Stripe — chưa trừ kho. Đơn tự chuyển sang
+              &quot;Chờ xác nhận&quot; khi tiền về, hoặc tự huỷ khi hết hạn thanh toán.
+            </span>
+          </div>
+        ) : isOutsideFlow ? (
           <div className="flex items-center gap-2">
             <OrderStatusTag status={status} />
             <span className="text-muted text-sm">
@@ -289,6 +298,23 @@ export function OrderDetail({ orderId }: { orderId: string }) {
               <Descriptions.Item label="TT thanh toán">
                 <PaymentStatusTag status={order.paymentStatus} />
               </Descriptions.Item>
+              {order.paidAt && (
+                <Descriptions.Item label="Thanh toán lúc">
+                  {dayjs(order.paidAt).format("HH:mm DD/MM/YYYY")}
+                </Descriptions.Item>
+              )}
+              {order.stripePaymentIntentId && (
+                <Descriptions.Item label="Stripe">
+                  <a
+                    href={stripePaymentUrl(order.stripePaymentIntentId)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Xem giao dịch / hoàn tiền trên Stripe Dashboard"
+                  >
+                    Xem trên Stripe ↗
+                  </a>
+                </Descriptions.Item>
+              )}
               {order.note && <Descriptions.Item label="Ghi chú">{order.note}</Descriptions.Item>}
             </Descriptions>
           </section>

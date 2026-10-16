@@ -33,6 +33,7 @@ import { STOCK_LEVEL_LABEL, type StockLevel } from "@/types/warehouse";
  */
 
 const ORDER_COLOR: Record<OrderStatus, string> = {
+  awaiting_payment: "default",
   pending: "gold",
   confirmed: "blue",
   processing: "cyan",
