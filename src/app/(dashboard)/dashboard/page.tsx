@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { App, Button, Table } from "antd";
-import type { ColumnsType } from "antd/es/table";
+import { App, Button } from "antd";
 import dayjs from "dayjs";
 import {
   AlertTriangle,
@@ -15,8 +14,6 @@ import {
 
 import { PageHeader } from "@/components/common/PageHeader";
 import { StatCard } from "@/components/common/StatCard";
-import { OrderStatusTag } from "@/components/common/StatusTag";
-import { BarChart } from "@/components/charts/BarChart";
 import { LineAreaChart } from "@/components/charts/LineAreaChart";
 import { PieDonutChart } from "@/components/charts/PieDonutChart";
 import {
@@ -29,42 +26,15 @@ import { getDashboardOverview } from "@/lib/api/dashboard";
 import { listOrders } from "@/lib/api/orders";
 import { toIsoEnd, toIsoStart } from "@/lib/api/pagination";
 import { orderStatusColors } from "@/lib/chart-colors";
-import {
-  formatCompactCurrency,
-  formatCurrency,
-  formatNumber,
-} from "@/lib/utils";
+import { formatCurrency, formatNumber } from "@/lib/utils";
 import { useThemeStore } from "@/store/useThemeStore";
 import type { DashboardOverview } from "@/types/dashboard";
 import { ORDER_STATUS_LABEL, type Order } from "@/types/order";
 
-const RECENT_ORDERS_LIMIT = 6;
+import { RecentOrdersPanel } from "./_components/RecentOrdersPanel";
+import { TopProductsPanel } from "./_components/TopProductsPanel";
 
-const recentOrderColumns: ColumnsType<Order> = [
-  {
-    title: "Mã đơn",
-    dataIndex: "code",
-    width: 130,
-    render: (code: string, record) => (
-      <Link href={routes.orders.detail(record.id)}>{code}</Link>
-    ),
-  },
-  { title: "Khách hàng", dataIndex: "customerName", ellipsis: true },
-  {
-    title: "Tổng tiền",
-    dataIndex: "total",
-    width: 150,
-    align: "right",
-    render: (value: number) => formatCurrency(value),
-  },
-  {
-    title: "Trạng thái",
-    dataIndex: "status",
-    width: 140,
-    align: "center",
-    render: (status: Order["status"]) => <OrderStatusTag status={status} />,
-  },
-];
+const RECENT_ORDERS_LIMIT = 6;
 
 export default function DashboardPage() {
   const { message } = App.useApp();
@@ -152,14 +122,6 @@ export default function DashboardPage() {
     };
   }, [mode, overview]);
 
-  const topProducts = useMemo(() => {
-    const items = overview?.topProducts ?? [];
-    return {
-      categories: items.map((item) => item.productName),
-      values: items.map((item) => item.revenue),
-    };
-  }, [overview]);
-
   return (
     <>
       <PageHeader
@@ -184,7 +146,7 @@ export default function DashboardPage() {
       <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="Doanh thu"
-          value={formatCompactCurrency(summary?.revenue.value ?? 0)}
+          value={formatCurrency(summary?.revenue.value ?? 0)}
           icon={<Wallet size={18} />}
           loading={loading}
           trend={
@@ -240,7 +202,7 @@ export default function DashboardPage() {
           loading={loading}
           series={[{ name: "Doanh thu", data: revenueSeries.revenue }]}
           categories={revenueSeries.categories}
-          valueFormatter={formatCompactCurrency}
+          valueFormatter={formatCurrency}
           height={300}
         />
 
@@ -256,39 +218,14 @@ export default function DashboardPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <BarChart
-          className="xl:col-span-2"
-          title="Sản phẩm bán chạy"
-          description="Xếp theo doanh thu trong khoảng thời gian đã chọn"
-          horizontal
-          loading={loading}
-          series={[{ name: "Doanh thu", data: topProducts.values }]}
-          categories={topProducts.categories}
-          valueFormatter={formatCompactCurrency}
-          height={340}
+      {/* Hai khối danh sách chia đôi để tên sản phẩm và mã đơn đủ chỗ, không phải cuộn ngang */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <TopProductsPanel products={overview?.topProducts ?? []} loading={loading} />
+        <RecentOrdersPanel
+          orders={recentOrders}
+          limit={RECENT_ORDERS_LIMIT}
+          loading={recentLoading}
         />
-
-        <section className="bg-card border-line shadow-card rounded-lg border p-4">
-          <header className="mb-3">
-            <h3 className="text-fg text-base font-semibold">
-              Đơn hàng gần đây
-            </h3>
-            <p className="text-muted mt-0.5 text-xs">
-              {RECENT_ORDERS_LIMIT} đơn mới nhất trên toàn hệ thống
-            </p>
-          </header>
-
-          <Table<Order>
-            rowKey="id"
-            size="small"
-            loading={recentLoading}
-            columns={recentOrderColumns}
-            dataSource={recentOrders}
-            pagination={false}
-            scroll={{ x: "max-content" }}
-          />
-        </section>
       </div>
     </>
   );

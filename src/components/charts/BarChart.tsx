@@ -75,10 +75,20 @@ export function BarChart({
             xaxis: { lines: { show: horizontal } },
             yaxis: { lines: { show: !horizontal } },
           },
-          xaxis: { categories },
-          ...(valueFormatter && {
-            yaxis: { labels: { formatter: valueFormatter } },
-          }),
+          xaxis: {
+            categories,
+            ...(horizontal &&
+              valueFormatter && {
+                labels: {
+                  formatter: (value: string) => valueFormatter(Number(value)),
+                },
+              }),
+          },
+          ...(valueFormatter &&
+            !horizontal && {
+              yaxis: { labels: { formatter: valueFormatter } },
+            }),
+          ...(horizontal && { yaxis: { labels: { maxWidth: 220 } } }),
           tooltip: {
             shared: stacked,
             intersect: !stacked,
