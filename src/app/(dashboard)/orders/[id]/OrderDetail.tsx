@@ -14,6 +14,7 @@ import { formatCurrency, formatNumber } from "@/lib/utils";
 import {
   ORDER_STATUS_LABEL,
   ORDER_STATUS_TRANSITIONS,
+  ORDER_CHANNEL_LABEL,
   PAYMENT_METHOD_LABEL,
   PAYMENT_STATUS_LABEL,
   stripePaymentUrl,
@@ -289,9 +290,22 @@ export function OrderDetail({ orderId }: { orderId: string }) {
               <Descriptions.Item label="Điện thoại">
                 {order.customerPhone}
               </Descriptions.Item>
-              <Descriptions.Item label="Địa chỉ giao">
-                {shippingAddress}
-              </Descriptions.Item>
+              {order.customerEmail && (
+                <Descriptions.Item label="Email">
+                  <a href={`mailto:${order.customerEmail}`} className="break-all">
+                    {order.customerEmail}
+                  </a>
+                </Descriptions.Item>
+              )}
+              {order.channel === "in_store" ? (
+                <Descriptions.Item label="Kênh bán">
+                  {ORDER_CHANNEL_LABEL[order.channel]}
+                </Descriptions.Item>
+              ) : (
+                <Descriptions.Item label="Địa chỉ giao">
+                  {shippingAddress}
+                </Descriptions.Item>
+              )}
               <Descriptions.Item label="Thanh toán">
                 {PAYMENT_METHOD_LABEL[order.paymentMethod]}
               </Descriptions.Item>

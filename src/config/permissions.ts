@@ -35,6 +35,8 @@ export const ROUTE_PERMISSIONS: RoutePermissionRule[] = [
   { path: routes.campaigns.index, permission: "product.carousel.manage" },
 
   { path: routes.orders.index, permission: "orders.manage" },
+  // Bán tại quầy tạo đơn + thu tiền — backend dùng chung quyền quản lý đơn
+  { path: routes.pos, permission: "orders.manage" },
   { path: routes.warehouse.index, permission: "inventory.manage" },
   { path: routes.posts.index, permission: "articles.manage" },
   { path: routes.activityLogs, permission: "logs.view" },

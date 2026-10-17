@@ -10,7 +10,17 @@ export type OrderStatus =
 
 export type PaymentStatus = "unpaid" | "paid" | "refunded" | "failed";
 
-export type PaymentMethod = "cod" | "bank_transfer" | "credit_card" | "e_wallet" | "stripe";
+export type PaymentMethod =
+  | "cod"
+  | "bank_transfer"
+  | "credit_card"
+  | "e_wallet"
+  | "stripe"
+  | "stripe_terminal"
+  | "cash";
+
+/** `in_store`: nhân viên lên đơn tại quầy (màn POS) — không giao hàng, trả tiền xong là hoàn tất. */
+export type OrderChannel = "online" | "in_store";
 
 export interface OrderItem {
   id: string;
@@ -51,6 +61,7 @@ export interface Order {
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   paymentMethod: PaymentMethod;
+  channel: OrderChannel;
   note?: string;
   /** Thời điểm Stripe xác nhận đã nhận tiền (chỉ đơn thanh toán online). */
   paidAt?: string;
@@ -73,7 +84,10 @@ export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
 };
 
 /** Các trạng thái được backend cho phép chuyển trực tiếp từ trạng thái hiện tại. */
-export const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
+export const ORDER_STATUS_TRANSITIONS: Record<
+  OrderStatus,
+  readonly OrderStatus[]
+> = {
   // Sang "pending" chỉ do webhook Stripe làm khi tiền về (kèm trừ kho) — không bấm tay được.
   awaiting_payment: ["cancelled"],
   pending: ["confirmed", "cancelled"],
@@ -98,6 +112,13 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   credit_card: "Thẻ tín dụng",
   e_wallet: "Ví điện tử",
   stripe: "Thẻ / PayPay (Stripe)",
+  stripe_terminal: "Quẹt thẻ tại quầy (POS)",
+  cash: "Tiền mặt",
+};
+
+export const ORDER_CHANNEL_LABEL: Record<OrderChannel, string> = {
+  online: "Đặt trên web",
+  in_store: "Tại quầy",
 };
 
 /**
@@ -105,7 +126,8 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
  * `NEXT_PUBLIC_STRIPE_DASHBOARD_URL=https://dashboard.stripe.com`.
  */
 const STRIPE_DASHBOARD_URL = (
-  process.env.NEXT_PUBLIC_STRIPE_DASHBOARD_URL ?? "https://dashboard.stripe.com/test"
+  process.env.NEXT_PUBLIC_STRIPE_DASHBOARD_URL ??
+  "https://dashboard.stripe.com/test"
 ).replace(/\/+$/, "");
 
 export function stripePaymentUrl(paymentIntentId: string): string {

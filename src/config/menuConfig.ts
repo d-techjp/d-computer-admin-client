@@ -13,6 +13,7 @@ import {
   ScrollText,
   ShieldCheck,
   ShoppingCart,
+  Store,
   Tags,
   UserRound,
   Users,
@@ -130,6 +131,12 @@ export const menuConfig: MenuItemConfig[] = [
     label: "Quản lý đơn hàng",
     icon: ShoppingCart,
     path: routes.orders.index,
+  },
+  {
+    key: "pos",
+    label: "Bán tại quầy",
+    icon: Store,
+    path: routes.pos,
   },
   {
     key: "warehouse",

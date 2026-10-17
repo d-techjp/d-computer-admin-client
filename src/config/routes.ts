@@ -42,6 +42,8 @@ export const routes = {
     detail: (id: string) => `/orders/${id}`,
   },
 
+  pos: "/pos",
+
   warehouse: {
     index: "/warehouse",
     stockIn: "/warehouse/stock-in",

@@ -36,7 +36,16 @@ const ORDER_STATUSES = [
 ] as const;
 
 const PAYMENT_STATUSES = ["unpaid", "paid", "refunded", "failed"] as const;
-const PAYMENT_METHODS = ["cod", "bank_transfer", "credit_card", "e_wallet", "stripe"] as const;
+const PAYMENT_METHODS = [
+  "cod",
+  "bank_transfer",
+  "credit_card",
+  "e_wallet",
+  "stripe",
+  "stripe_terminal",
+  "cash",
+] as const;
+const ORDER_CHANNELS = ["online", "in_store"] as const;
 
 export interface ListOrdersParams extends ApiListParams {
   userId?: string;
@@ -74,7 +83,9 @@ function toShippingAddress(value: unknown): ShippingAddress | undefined {
 
 function shippingAddressText(address?: ShippingAddress) {
   if (!address) return "";
-  return [address.street, address.ward, address.district, address.province].filter(Boolean).join(", ");
+  return [address.street, address.ward, address.district, address.province]
+    .filter(Boolean)
+    .join(", ");
 }
 
 function toOrderItem(value: unknown, index: number): OrderItem {
@@ -113,10 +124,15 @@ export function toOrder(value: unknown): Order {
     id: asString(record.id),
     code: asString(record.code ?? record.orderCode),
     customerId: asOptionalString(record.userId ?? record.customerId ?? user.id),
-    customerName: asString(record.customerName ?? user.fullName ?? user.name ?? address?.fullName),
-    customerPhone: asString(record.customerPhone ?? user.phone ?? address?.phone),
+    customerName: asString(
+      record.customerName ?? user.fullName ?? user.name ?? address?.fullName,
+    ),
+    customerPhone: asString(
+      record.customerPhone ?? user.phone ?? address?.phone,
+    ),
     customerEmail: asOptionalString(record.customerEmail ?? user.email),
-    shippingAddress: asString(record.shippingAddressText) || shippingAddressText(address),
+    shippingAddress:
+      asString(record.shippingAddressText) || shippingAddressText(address),
     shippingAddressDetail: address,
     items,
     subtotal,
@@ -126,6 +142,7 @@ export function toOrder(value: unknown): Order {
     status: asEnum(record.status, ORDER_STATUSES, "pending"),
     paymentStatus: asEnum(record.paymentStatus, PAYMENT_STATUSES, "unpaid"),
     paymentMethod: asEnum(record.paymentMethod, PAYMENT_METHODS, "cod"),
+    channel: asEnum(record.channel, ORDER_CHANNELS, "online"),
     note: asOptionalString(record.note),
     paidAt: asOptionalString(record.paidAt),
     stripeCheckoutSessionId: asOptionalString(record.stripeCheckoutSessionId),
@@ -162,14 +179,20 @@ export function fetchOrderByCode(code: string) {
   return apiFetch<unknown>(`/orders/code/${code}`).then(toOrder);
 }
 
-export function updateOrderStatus(id: string, payload: UpdateOrderStatusPayload) {
+export function updateOrderStatus(
+  id: string,
+  payload: UpdateOrderStatusPayload,
+) {
   return apiFetch<unknown>(`/orders/${id}/status`, {
     method: "PATCH",
     body: compactPayload(payload),
   }).then(toOrder);
 }
 
-export function updateOrderPaymentStatus(id: string, paymentStatus: PaymentStatus) {
+export function updateOrderPaymentStatus(
+  id: string,
+  paymentStatus: PaymentStatus,
+) {
   return apiFetch<unknown>(`/orders/${id}/payment-status`, {
     method: "PATCH",
     body: { paymentStatus },
