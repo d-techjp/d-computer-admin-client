@@ -29,7 +29,9 @@ export const STOCK_LEVEL_LABEL: Record<StockLevel, string> = {
   out_of_stock: "Hết hàng",
 };
 
-export function stockLevelOf(item: Pick<StockItem, "available" | "reorderPoint">): StockLevel {
+export function stockLevelOf(
+  item: Pick<StockItem, "available" | "reorderPoint">,
+): StockLevel {
   if (item.available <= 0) return "out_of_stock";
   if (item.available <= item.reorderPoint) return "low_stock";
   return "in_stock";

@@ -6,7 +6,12 @@
  * Endpoint public `GET /site-settings` (không tiền tố `admin`) không có ở đây
  * — đó là API cho storefront tự gọi, admin có đường riêng.
  */
-import type { FooterColumn, FooterLink, SiteSettings, SocialLink } from "@/types/siteSettings";
+import type {
+  FooterColumn,
+  FooterLink,
+  SiteSettings,
+  SocialLink,
+} from "@/types/siteSettings";
 
 import { apiFetch } from "./client";
 import { compactPayload } from "./pagination";
@@ -35,6 +40,7 @@ export interface SiteSettingsPayload {
   companyName?: string;
   phone?: string;
   address?: string;
+  invoiceRegistrationNumber?: string;
   socialLinks?: SocialLinkPayload[];
   footerColumns?: FooterColumnPayload[];
 }
@@ -73,6 +79,7 @@ export function toSiteSettings(value: unknown): SiteSettings {
     companyName: asString(record.companyName),
     phone: asString(record.phone),
     address: asString(record.address),
+    invoiceRegistrationNumber: asString(record.invoiceRegistrationNumber),
     socialLinks: asArray(record.socialLinks).map(toSocialLink),
     footerColumns: asArray(record.footerColumns).map(toFooterColumn),
   };
@@ -85,6 +92,12 @@ export function fetchSiteSettings() {
 export function updateSiteSettings(payload: SiteSettingsPayload) {
   return apiFetch<unknown>("/site-settings", {
     method: "PATCH",
-    body: compactPayload(payload),
+    body: {
+      ...compactPayload(payload),
+      // Chuỗi rỗng là "xoá số đăng ký" — compactPayload sẽ bỏ mất nên gửi riêng
+      ...(payload.invoiceRegistrationNumber !== undefined && {
+        invoiceRegistrationNumber: payload.invoiceRegistrationNumber,
+      }),
+    },
   }).then(toSiteSettings);
 }

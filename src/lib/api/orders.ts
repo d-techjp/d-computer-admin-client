@@ -97,6 +97,7 @@ function toOrderItem(value: unknown, index: number): OrderItem {
 
   return {
     id: asString(record.id, `${index}`),
+    parentItemId: asOptionalString(record.parentItemId),
     productId: asOptionalString(record.productId ?? product.id),
     variantId: asOptionalString(record.variantId ?? variant.id),
     productName: asString(record.productName ?? product.name ?? record.name),
@@ -197,4 +198,44 @@ export function updateOrderPaymentStatus(
     method: "PATCH",
     body: { paymentStatus },
   }).then(toOrder);
+}
+
+export interface OrderReceipt {
+  shop: {
+    name: string;
+    phone: string;
+    address: string;
+    /** Rỗng khi cửa hàng chưa đăng ký インボイス */
+    invoiceRegistrationNumber?: string;
+  };
+  order: Order;
+  /** Mỗi thuế suất một dòng: số tiền chịu thuế (đã gồm thuế) và tiền thuế trong đó */
+  taxLines: Array<{ rate: number; taxableAmount: number; taxAmount: number }>;
+}
+
+/** Dữ liệu in bill — gồm thông tin cửa hàng nên nhân viên chỉ có quyền đơn hàng vẫn in được */
+export function fetchOrderReceipt(id: string): Promise<OrderReceipt> {
+  return apiFetch<unknown>(`/orders/${id}/receipt`).then((value) => {
+    const record = asRecord(value);
+    const shop = asRecord(record.shop);
+    return {
+      shop: {
+        name: asString(shop.name),
+        phone: asString(shop.phone),
+        address: asString(shop.address),
+        invoiceRegistrationNumber: asOptionalString(
+          shop.invoiceRegistrationNumber,
+        ),
+      },
+      order: toOrder(record.order),
+      taxLines: asArray(record.taxLines).map((item) => {
+        const line = asRecord(item);
+        return {
+          rate: asNumber(line.rate),
+          taxableAmount: asNumber(line.taxableAmount),
+          taxAmount: asNumber(line.taxAmount),
+        };
+      }),
+    };
+  });
 }

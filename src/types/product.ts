@@ -112,7 +112,8 @@ export const PRODUCT_TYPE_LABEL: Record<ProductType, string> = {
 };
 
 export const PRODUCT_TYPE_HINT: Record<ProductType, string> = {
-  standard: "Hàng hoá thường — có tồn kho, một hoặc nhiều phiên bản (RAM, màu...).",
+  standard:
+    "Hàng hoá thường — có tồn kho, một hoặc nhiều phiên bản (RAM, màu...).",
   bundle: "Combo/kit ghép từ các phiên bản sẵn có, bán theo gói.",
   service: "Dịch vụ (cài win, vệ sinh máy, bảo hành mở rộng) — không quản kho.",
 };
@@ -123,11 +124,15 @@ export const PRODUCT_TYPE_HINT: Record<ProductType, string> = {
  * phần tử đầu để không vỡ UI nếu dữ liệu cũ chưa chuẩn hoá.
  */
 export function defaultVariantOf(product: Pick<Product, "variants">) {
-  return product.variants.find((variant) => variant.isDefault) ?? product.variants[0];
+  return (
+    product.variants.find((variant) => variant.isDefault) ?? product.variants[0]
+  );
 }
 
 /** `true` khi mọi biến thể đều cùng một giá — dùng để hiển thị 1 giá thay vì khoảng */
-export function hasSinglePrice(product: Pick<Product, "minPrice" | "maxPrice">) {
+export function hasSinglePrice(
+  product: Pick<Product, "minPrice" | "maxPrice">,
+) {
   return (
     product.minPrice === undefined ||
     product.maxPrice === undefined ||
@@ -136,7 +141,9 @@ export function hasSinglePrice(product: Pick<Product, "minPrice" | "maxPrice">) 
 }
 
 /** Sản phẩm dịch vụ và hàng đặt trước không hiển thị tồn kho ở bất kỳ đâu */
-export function tracksInventory(product: Pick<Product, "productType" | "variants">) {
+export function tracksInventory(
+  product: Pick<Product, "productType" | "variants">,
+) {
   if (product.productType === "service") return false;
   return product.variants.some((variant) => variant.trackInventory);
 }

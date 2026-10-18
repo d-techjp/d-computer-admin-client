@@ -34,6 +34,7 @@ import {
   Percent,
   Phone,
   Plus,
+  Printer,
   Search,
   Trash2,
   UserRound,
@@ -58,6 +59,7 @@ import {
   type PosReaders,
 } from "@/lib/api/pos";
 import { listProducts } from "@/lib/api/products";
+import { printOrderReceipt } from "@/lib/printReceipt";
 import { cn, formatCurrency } from "@/lib/utils";
 
 /** Một dòng có thể bán: biến thể đang bật của sản phẩm đang bán */
@@ -392,6 +394,8 @@ export default function PosPage() {
   const [busy, setBusy] = useState(false);
   /** Dòng phụ trên màn hình thành công, vd tiền thối */
   const [successNote, setSuccessNote] = useState<string>();
+  /** Tiền khách đưa của đơn tiền mặt vừa xong — để in お預り / お釣り */
+  const [successCash, setSuccessCash] = useState<number>();
   const pollTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const stopPolling = () => clearTimeout(pollTimer.current);
@@ -448,6 +452,9 @@ export default function PosPage() {
         ...orderPayload(),
         paymentMethod: method,
       });
+      setSuccessCash(
+        method === "cash" ? (cashReceived ?? undefined) : undefined,
+      );
       setSuccessNote(
         method === "cash" && changeDue > 0
           ? `Khách đưa ${formatCurrency(cashReceived ?? 0)} — trả lại ${formatCurrency(changeDue)}`
@@ -495,6 +502,7 @@ export default function PosPage() {
     setBusy(true);
     setPaymentError(undefined);
     setSuccessNote(undefined);
+    setSuccessCash(undefined);
     let orderId: string | undefined;
     try {
       const order = await createPosOrder({
@@ -898,6 +906,7 @@ export default function PosPage() {
           <PaymentPanel
             payment={payment}
             successNote={successNote}
+            cashReceived={successCash}
             error={paymentError}
             busy={busy}
             testMode={!!readers?.testMode}
@@ -1356,8 +1365,40 @@ function CashField({
   );
 }
 
+function PrintReceiptButton({
+  orderId,
+  cashReceived,
+}: {
+  orderId: string;
+  cashReceived?: number;
+}) {
+  const { message } = App.useApp();
+  const [printing, setPrinting] = useState(false);
+
+  return (
+    <Button
+      icon={<Printer size={16} />}
+      loading={printing}
+      onClick={async () => {
+        setPrinting(true);
+        try {
+          await printOrderReceipt(orderId, { cashReceived });
+        } catch (error) {
+          message.error(errorMessage(error, "Không in được bill"));
+        } finally {
+          setPrinting(false);
+        }
+      }}
+    >
+      In bill
+    </Button>
+  );
+}
+
 interface PaymentPanelProps {
   payment: PosPayment;
+  /** Có thì bấm "In bill" sẽ in kèm お預り / お釣り */
+  cashReceived?: number;
   successNote?: string;
   error?: string;
   busy: boolean;
@@ -1371,6 +1412,7 @@ interface PaymentPanelProps {
 
 function PaymentPanel({
   payment,
+  cashReceived,
   successNote,
   error,
   busy,
@@ -1400,6 +1442,11 @@ function PaymentPanel({
           <Button key="new" type="primary" onClick={onDone}>
             Đơn mới
           </Button>,
+          <PrintReceiptButton
+            key="print"
+            orderId={payment.orderId}
+            cashReceived={cashReceived}
+          />,
           <Link key="detail" href={routes.orders.detail(payment.orderId)}>
             <Button>Xem đơn</Button>
           </Link>,

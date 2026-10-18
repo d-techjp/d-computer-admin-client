@@ -34,12 +34,18 @@ export const INVENTORY_REASON_LABEL: Record<InventoryReasonCode, string> = {
   other: "Khác",
 };
 
-export const INVENTORY_REFERENCE_TYPE_LABEL: Record<InventoryReferenceType, string> = {
+export const INVENTORY_REFERENCE_TYPE_LABEL: Record<
+  InventoryReferenceType,
+  string
+> = {
   order: "Từ đơn hàng",
   manual: "Thủ công",
 };
 
-export const INVENTORY_TRANSACTION_TYPE_LABEL: Record<InventoryTransactionType, string> = {
+export const INVENTORY_TRANSACTION_TYPE_LABEL: Record<
+  InventoryTransactionType,
+  string
+> = {
   in: "Nhập kho",
   out: "Xuất kho",
 };
@@ -75,7 +81,13 @@ export const INVENTORY_FILTER_REASONS: Record<
   InventoryTransactionType,
   readonly InventoryReasonCode[]
 > = {
-  in: ["purchase", "return_from_customer", "order_cancelled", "stocktake_adjustment", "other"],
+  in: [
+    "purchase",
+    "return_from_customer",
+    "order_cancelled",
+    "stocktake_adjustment",
+    "other",
+  ],
   out: ["order_sale", "damaged", "lost", "stocktake_adjustment", "other"],
 };
 
@@ -132,7 +144,10 @@ export interface InventoryTransaction {
  * tồn `0` với dịch vụ không phải là cảnh báo.
  */
 export function inventoryStockLevelOf(
-  item: Pick<InventoryStockItem, "stock" | "lowStockThreshold" | "trackInventory">,
+  item: Pick<
+    InventoryStockItem,
+    "stock" | "lowStockThreshold" | "trackInventory"
+  >,
 ): StockLevel {
   if (!item.trackInventory) return "in_stock";
   if (item.stock <= 0) return "out_of_stock";

@@ -1,5 +1,9 @@
 import type { SelectOption } from "@/types/common";
-import type { Customer, CustomerStatus } from "@/types/customer";
+import type {
+  Customer,
+  CustomerOrderStats,
+  CustomerStatus,
+} from "@/types/customer";
 import type { AdminUser, AdminUserStatus } from "@/types/admin-user";
 
 import { apiFetch } from "./client";
@@ -10,6 +14,7 @@ import {
   type ApiListParams,
   type ApiListResult,
 } from "./pagination";
+import { asNumber, asOptionalString } from "./parse";
 
 export type UserStatus = AdminUserStatus;
 
@@ -65,8 +70,14 @@ function asString(value: unknown, fallback = "") {
 function readRole(record: Record<string, unknown>) {
   const role = asRecord(record.role);
   return {
-    code: asString(record.roleCode ?? record.role_code ?? role.code ?? record.role, "customer"),
-    name: asString(record.roleName ?? record.role_name ?? role.name ?? role.code, "Khách hàng"),
+    code: asString(
+      record.roleCode ?? record.role_code ?? role.code ?? record.role,
+      "customer",
+    ),
+    name: asString(
+      record.roleName ?? record.role_name ?? role.name ?? role.code,
+      "Khách hàng",
+    ),
   };
 }
 
@@ -85,8 +96,12 @@ export function toUserRecord(value: unknown): UserRecord {
     roleCode: role.code,
     roleName: role.name,
     status: asString(record.status, "active") as UserStatus,
-    createdAt: asString(record.createdAt ?? record.created_at, new Date(0).toISOString()),
-    lastLoginAt: asString(record.lastLoginAt ?? record.last_login_at) || undefined,
+    createdAt: asString(
+      record.createdAt ?? record.created_at,
+      new Date(0).toISOString(),
+    ),
+    lastLoginAt:
+      asString(record.lastLoginAt ?? record.last_login_at) || undefined,
   };
 }
 
@@ -114,8 +129,6 @@ export function toCustomer(user: UserRecord): Customer {
     email: user.email,
     phone: user.phone,
     tier: "normal",
-    totalOrders: 0,
-    totalSpent: 0,
     status: user.status as CustomerStatus,
     createdAt: user.createdAt,
   };
@@ -136,13 +149,16 @@ export function listUsers(params: ListUsersParams) {
   );
 }
 
-export function listAdminUsers(params: Omit<ListUsersParams, "roleCode"> & { roleCode?: string }) {
-  return listUsers({ ...params, roleCode: params.roleCode ?? "staff|admin" }).then(
-    (result): ApiListResult<AdminUser> => ({
-      ...result,
-      data: result.data.map(toAdminUser),
-    }),
-  );
+export function listAdminUsers(
+  params: Omit<ListUsersParams, "roleCode"> & { roleCode?: string },
+) {
+  return listUsers({
+    ...params,
+    roleCode: params.roleCode ?? "staff|admin",
+  }).then((result): ApiListResult<AdminUser> => ({
+    ...result,
+    data: result.data.map(toAdminUser),
+  }));
 }
 
 export function listCustomers(params: Omit<ListUsersParams, "roleCode">) {
@@ -186,5 +202,25 @@ export function assignUserRole(id: string, roleCode: string) {
 export function toUserRoleOptions(users: UserRecord[]): SelectOption[] {
   const roles = new Map<string, string>();
   users.forEach((user) => roles.set(user.roleCode, user.roleName));
-  return Array.from(roles.entries()).map(([value, label]) => ({ value, label }));
+  return Array.from(roles.entries()).map(([value, label]) => ({
+    value,
+    label,
+  }));
+}
+
+export function fetchCustomerOrderStats(
+  id: string,
+): Promise<CustomerOrderStats> {
+  return apiFetch<unknown>(`/users/${id}/order-stats`).then((value) => {
+    const record = asRecord(value);
+    return {
+      orderCount: asNumber(record.orderCount),
+      completedCount: asNumber(record.completedCount),
+      cancelledCount: asNumber(record.cancelledCount),
+      totalSpent: asNumber(record.totalSpent),
+      averageOrderValue: asNumber(record.averageOrderValue),
+      firstOrderAt: asOptionalString(record.firstOrderAt),
+      lastOrderAt: asOptionalString(record.lastOrderAt),
+    };
+  });
 }

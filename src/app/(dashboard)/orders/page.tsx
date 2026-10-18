@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { App, Button, Input, Select, Tooltip } from "antd";
+import { App, Button, Input, Select, Tag, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { SorterResult } from "antd/es/table/interface";
 import dayjs from "dayjs";
@@ -10,7 +10,10 @@ import { Eye } from "lucide-react";
 
 import { DataTable } from "@/components/common/DataTable";
 import { PageHeader } from "@/components/common/PageHeader";
-import { OrderStatusTag, PaymentStatusTag } from "@/components/common/StatusTag";
+import {
+  OrderStatusTag,
+  PaymentStatusTag,
+} from "@/components/common/StatusTag";
 import {
   DatePickerPresetRange,
   DEFAULT_DATE_RANGE,
@@ -23,6 +26,7 @@ import { listOrders, updateOrderStatus } from "@/lib/api/orders";
 import { formatCurrency } from "@/lib/utils";
 import { DEFAULT_PAGE_SIZE } from "@/types/common";
 import {
+  ORDER_CHANNEL_LABEL,
   ORDER_STATUS_LABEL,
   ORDER_STATUS_TRANSITIONS,
   PAYMENT_METHOD_LABEL,
@@ -79,7 +83,8 @@ export default function OrdersPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<OrderFilters>(INITIAL_FILTERS);
-  const [appliedFilters, setAppliedFilters] = useState<OrderFilters>(INITIAL_FILTERS);
+  const [appliedFilters, setAppliedFilters] =
+    useState<OrderFilters>(INITIAL_FILTERS);
   const [sort, setSort] = useState<OrderSort>(DEFAULT_SORT);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -103,7 +108,11 @@ export default function OrdersPage() {
       setRows(response.data);
       setTotal(response.total);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "Không tải được danh sách đơn hàng");
+      message.error(
+        error instanceof Error
+          ? error.message
+          : "Không tải được danh sách đơn hàng",
+      );
     } finally {
       setLoading(false);
     }
@@ -129,11 +138,21 @@ export default function OrdersPage() {
     async (order: Order, nextStatus: OrderStatus) => {
       setUpdatingOrderId(order.id);
       try {
-        const updated = await updateOrderStatus(order.id, { status: nextStatus });
-        setRows((current) => current.map((item) => (item.id === updated.id ? updated : item)));
-        message.success(`Đã chuyển ${order.code} sang \"${ORDER_STATUS_LABEL[updated.status]}\"`);
+        const updated = await updateOrderStatus(order.id, {
+          status: nextStatus,
+        });
+        setRows((current) =>
+          current.map((item) => (item.id === updated.id ? updated : item)),
+        );
+        message.success(
+          `Đã chuyển ${order.code} sang \"${ORDER_STATUS_LABEL[updated.status]}\"`,
+        );
       } catch (error) {
-        message.error(error instanceof Error ? error.message : "Không cập nhật được trạng thái đơn");
+        message.error(
+          error instanceof Error
+            ? error.message
+            : "Không cập nhật được trạng thái đơn",
+        );
       } finally {
         setUpdatingOrderId(undefined);
       }
@@ -147,11 +166,22 @@ export default function OrdersPage() {
         title: "Mã đơn",
         dataIndex: "code",
         fixed: "left",
-        width: 140,
+        // Mã đơn dạng `DH20261017-XXXXXX` — không cho xuống dòng giữa mã
+        width: 200,
         render: (code: string, record) => (
-          <Link href={routes.orders.detail(record.id)} className="font-semibold">
-            {code}
-          </Link>
+          <div className="flex flex-col items-start gap-1">
+            <Link
+              href={routes.orders.detail(record.id)}
+              className="font-semibold whitespace-nowrap"
+            >
+              {code}
+            </Link>
+            {record.channel === "in_store" && (
+              <Tag color="purple" className="m-0 text-xs">
+                {ORDER_CHANNEL_LABEL.in_store}
+              </Tag>
+            )}
+          </div>
         ),
       },
       {
@@ -206,7 +236,8 @@ export default function OrdersPage() {
             (nextStatus) => nextStatus !== "cancelled",
           );
 
-          if (quickTransitions.length === 0) return <OrderStatusTag status={status} />;
+          if (quickTransitions.length === 0)
+            return <OrderStatusTag status={status} />;
 
           return (
             <Select
@@ -215,13 +246,19 @@ export default function OrdersPage() {
               loading={updatingOrderId === record.id}
               disabled={updatingOrderId !== undefined}
               options={[
-                { value: status, label: ORDER_STATUS_LABEL[status], disabled: true },
+                {
+                  value: status,
+                  label: ORDER_STATUS_LABEL[status],
+                  disabled: true,
+                },
                 ...quickTransitions.map((value) => ({
                   value,
                   label: `→ ${ORDER_STATUS_LABEL[value]}`,
                 })),
               ]}
-              onChange={(nextStatus: OrderStatus) => void updateStatusQuickly(record, nextStatus)}
+              onChange={(nextStatus: OrderStatus) =>
+                void updateStatusQuickly(record, nextStatus)
+              }
               className={`order-status-select order-status-select--${status} min-w-40 text-left`}
             />
           );
@@ -279,7 +316,9 @@ export default function OrdersPage() {
       : DEFAULT_SORT;
 
     setSort((current) =>
-      current.sortBy === next.sortBy && current.sortOrder === next.sortOrder ? current : next,
+      current.sortBy === next.sortBy && current.sortOrder === next.sortOrder
+        ? current
+        : next,
     );
   };
 
@@ -294,10 +333,13 @@ export default function OrdersPage() {
         <FormItemLayout label="Mã đơn / khách hàng">
           <Input
             allowClear
-            placeholder="Nhập mã đơn, tên hoặc SĐT"
+            placeholder="Mã đơn, tên, email hoặc SĐT"
             value={filters.keyword}
             onChange={(event) =>
-              setFilters((current) => ({ ...current, keyword: event.target.value }))
+              setFilters((current) => ({
+                ...current,
+                keyword: event.target.value,
+              }))
             }
           />
         </FormItemLayout>
@@ -308,7 +350,9 @@ export default function OrdersPage() {
             placeholder="Tất cả trạng thái"
             options={STATUS_OPTIONS}
             value={filters.status}
-            onChange={(status) => setFilters((current) => ({ ...current, status }))}
+            onChange={(status) =>
+              setFilters((current) => ({ ...current, status }))
+            }
             className="w-full"
           />
         </FormItemLayout>
@@ -332,7 +376,9 @@ export default function OrdersPage() {
             placeholder="Tất cả hình thức"
             options={PAYMENT_OPTIONS}
             value={filters.paymentMethod}
-            onChange={(paymentMethod) => setFilters((current) => ({ ...current, paymentMethod }))}
+            onChange={(paymentMethod) =>
+              setFilters((current) => ({ ...current, paymentMethod }))
+            }
             className="w-full"
           />
         </FormItemLayout>
@@ -340,7 +386,9 @@ export default function OrdersPage() {
         <DatePickerPresetRange
           label="Ngày đặt hàng"
           value={filters.dateRange}
-          onChange={(dateRange) => setFilters((current) => ({ ...current, dateRange }))}
+          onChange={(dateRange) =>
+            setFilters((current) => ({ ...current, dateRange }))
+          }
         />
       </SearchFilterBar>
 

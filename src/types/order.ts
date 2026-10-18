@@ -24,6 +24,8 @@ export type OrderChannel = "online" | "in_store";
 
 export interface OrderItem {
   id: string;
+  /** Dòng thành phần của combo (giá 0) — trỏ về dòng cha */
+  parentItemId?: string;
   productId?: string;
   variantId?: string;
   productName: string;

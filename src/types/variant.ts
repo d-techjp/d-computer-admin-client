@@ -14,12 +14,18 @@
 /** `variants_bundle_inventory_policy_enum` — chỉ có giá trị khi product là combo */
 export type BundleInventoryPolicy = "derived_from_components" | "own_stock";
 
-export const BUNDLE_INVENTORY_POLICY_LABEL: Record<BundleInventoryPolicy, string> = {
+export const BUNDLE_INVENTORY_POLICY_LABEL: Record<
+  BundleInventoryPolicy,
+  string
+> = {
   derived_from_components: "Suy ra từ thành phần",
   own_stock: "Kho riêng của combo",
 };
 
-export const BUNDLE_INVENTORY_POLICY_HINT: Record<BundleInventoryPolicy, string> = {
+export const BUNDLE_INVENTORY_POLICY_HINT: Record<
+  BundleInventoryPolicy,
+  string
+> = {
   derived_from_components:
     "Combo marketing — thành phần vẫn bán lẻ được. Tồn kho tính bằng MIN(tồn thành phần / số lượng cần), bán combo thì trừ kho thành phần.",
   own_stock:
@@ -117,12 +123,17 @@ export interface LowStockVariant extends ProductVariant {
 }
 
 /** Biến thể đã hết hàng và có quản kho — dùng để tô đỏ / chặn thao tác */
-export function isOutOfStock(variant: Pick<ProductVariant, "stock" | "trackInventory">) {
+export function isOutOfStock(
+  variant: Pick<ProductVariant, "stock" | "trackInventory">,
+) {
   return variant.trackInventory && variant.stock <= 0;
 }
 
 export function isLowStock(
-  variant: Pick<ProductVariant, "stock" | "lowStockThreshold" | "trackInventory">,
+  variant: Pick<
+    ProductVariant,
+    "stock" | "lowStockThreshold" | "trackInventory"
+  >,
 ) {
   return (
     variant.trackInventory &&

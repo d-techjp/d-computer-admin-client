@@ -1,15 +1,34 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { App, Button, Descriptions, Empty, Input, Select, Skeleton, Space, Steps } from "antd";
+import {
+  App,
+  Button,
+  Descriptions,
+  Empty,
+  Input,
+  Select,
+  Skeleton,
+  Space,
+  Steps,
+} from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
+import { Printer } from "lucide-react";
 
 import { DataTable } from "@/components/common/DataTable";
 import { PageHeader } from "@/components/common/PageHeader";
-import { OrderStatusTag, PaymentStatusTag } from "@/components/common/StatusTag";
+import {
+  OrderStatusTag,
+  PaymentStatusTag,
+} from "@/components/common/StatusTag";
 import routes from "@/config/routes";
-import { fetchOrder, updateOrderPaymentStatus, updateOrderStatus } from "@/lib/api/orders";
+import {
+  fetchOrder,
+  updateOrderPaymentStatus,
+  updateOrderStatus,
+} from "@/lib/api/orders";
+import { printOrderReceipt } from "@/lib/printReceipt";
 import { formatCurrency, formatNumber } from "@/lib/utils";
 import {
   ORDER_STATUS_LABEL,
@@ -25,7 +44,13 @@ import {
 } from "@/types/order";
 
 /** Luồng trạng thái chuẩn; đơn đã huỷ nằm ngoài luồng này */
-const FLOW: OrderStatus[] = ["pending", "confirmed", "processing", "shipping", "completed"];
+const FLOW: OrderStatus[] = [
+  "pending",
+  "confirmed",
+  "processing",
+  "shipping",
+  "completed",
+];
 
 const PAYMENT_STATUS_OPTIONS = Object.entries(PAYMENT_STATUS_LABEL).map(
   ([value, label]) => ({ label, value }),
@@ -65,9 +90,7 @@ const itemColumns: ColumnsType<OrderItem> = [
     width: 160,
     align: "right",
     render: (_, record) => (
-      <span className="font-semibold">
-        {formatCurrency(record.total)}
-      </span>
+      <span className="font-semibold">{formatCurrency(record.total)}</span>
     ),
   },
 ];
@@ -91,7 +114,11 @@ export function OrderDetail({ orderId }: { orderId: string }) {
       setPaymentStatus(response.paymentStatus);
       setReason("");
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "Không tải được chi tiết đơn hàng");
+      message.error(
+        error instanceof Error
+          ? error.message
+          : "Không tải được chi tiết đơn hàng",
+      );
     } finally {
       setLoading(false);
     }
@@ -105,7 +132,9 @@ export function OrderDetail({ orderId }: { orderId: string }) {
   const isOutsideFlow = status === "cancelled" || status === "refunded";
 
   const paymentChanged = !!order && paymentStatus !== order.paymentStatus;
-  const nextStatus = ORDER_STATUS_TRANSITIONS[status].find((candidate) => candidate !== "cancelled");
+  const nextStatus = ORDER_STATUS_TRANSITIONS[status].find(
+    (candidate) => candidate !== "cancelled",
+  );
   const nextActionLabel: Partial<Record<OrderStatus, string>> = {
     confirmed: "Xác nhận đơn",
     processing: "Bắt đầu xử lý",
@@ -117,7 +146,9 @@ export function OrderDetail({ orderId }: { orderId: string }) {
   const shippingAddress = useMemo(() => {
     const detail = order?.shippingAddressDetail;
     if (!detail) return order?.shippingAddress ?? "";
-    return [detail.street, detail.ward, detail.district, detail.province].filter(Boolean).join(", ");
+    return [detail.street, detail.ward, detail.district, detail.province]
+      .filter(Boolean)
+      .join(", ");
   }, [order]);
 
   const onSaveStatus = async (nextStatus: OrderStatus) => {
@@ -132,9 +163,15 @@ export function OrderDetail({ orderId }: { orderId: string }) {
       setStatus(response.status);
       setPaymentStatus(response.paymentStatus);
       setReason("");
-      message.success(`Đã chuyển đơn sang "${ORDER_STATUS_LABEL[response.status]}"`);
+      message.success(
+        `Đã chuyển đơn sang "${ORDER_STATUS_LABEL[response.status]}"`,
+      );
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "Không cập nhật được trạng thái đơn");
+      message.error(
+        error instanceof Error
+          ? error.message
+          : "Không cập nhật được trạng thái đơn",
+      );
     } finally {
       setSavingStatus(false);
     }
@@ -148,10 +185,14 @@ export function OrderDetail({ orderId }: { orderId: string }) {
       setOrder(response);
       setStatus(response.status);
       setPaymentStatus(response.paymentStatus);
-      message.success(`Đã cập nhật thanh toán: ${PAYMENT_STATUS_LABEL[response.paymentStatus]}`);
+      message.success(
+        `Đã cập nhật thanh toán: ${PAYMENT_STATUS_LABEL[response.paymentStatus]}`,
+      );
     } catch (error) {
       message.error(
-        error instanceof Error ? error.message : "Không cập nhật được trạng thái thanh toán",
+        error instanceof Error
+          ? error.message
+          : "Không cập nhật được trạng thái thanh toán",
       );
     } finally {
       setSavingPayment(false);
@@ -179,6 +220,22 @@ export function OrderDetail({ orderId }: { orderId: string }) {
           <Space wrap>
             <OrderStatusTag status={order.status} />
             <PaymentStatusTag status={order.paymentStatus} />
+            {order.paymentStatus === "paid" && (
+              <Button
+                icon={<Printer size={16} />}
+                onClick={() =>
+                  printOrderReceipt(order.id).catch((error: unknown) =>
+                    message.error(
+                      error instanceof Error
+                        ? error.message
+                        : "Không in được bill",
+                    ),
+                  )
+                }
+              >
+                In bill
+              </Button>
+            )}
           </Space>
         }
       />
@@ -188,8 +245,9 @@ export function OrderDetail({ orderId }: { orderId: string }) {
           <div className="flex flex-wrap items-center gap-2">
             <OrderStatusTag status={status} />
             <span className="text-muted text-sm">
-              Khách chưa thanh toán xong trên Stripe — chưa trừ kho. Đơn tự chuyển sang
-              &quot;Chờ xác nhận&quot; khi tiền về, hoặc tự huỷ khi hết hạn thanh toán.
+              Khách chưa thanh toán xong trên Stripe — chưa trừ kho. Đơn tự
+              chuyển sang &quot;Chờ xác nhận&quot; khi tiền về, hoặc tự huỷ khi
+              hết hạn thanh toán.
             </span>
           </div>
         ) : isOutsideFlow ? (
@@ -208,7 +266,11 @@ export function OrderDetail({ orderId }: { orderId: string }) {
         )}
         {nextStatus && !isOutsideFlow && (
           <div className="mt-4 flex justify-end">
-            <Button type="primary" loading={savingStatus} onClick={() => void onSaveStatus(nextStatus)}>
+            <Button
+              type="primary"
+              loading={savingStatus}
+              onClick={() => void onSaveStatus(nextStatus)}
+            >
               {nextActionLabel[nextStatus]}
             </Button>
           </div>
@@ -251,7 +313,9 @@ export function OrderDetail({ orderId }: { orderId: string }) {
 
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="text-fg mb-1 text-sm font-semibold">Trạng thái thanh toán</p>
+            <p className="text-fg mb-1 text-sm font-semibold">
+              Trạng thái thanh toán
+            </p>
             <Select
               value={paymentStatus}
               options={PAYMENT_STATUS_OPTIONS}
@@ -292,7 +356,10 @@ export function OrderDetail({ orderId }: { orderId: string }) {
               </Descriptions.Item>
               {order.customerEmail && (
                 <Descriptions.Item label="Email">
-                  <a href={`mailto:${order.customerEmail}`} className="break-all">
+                  <a
+                    href={`mailto:${order.customerEmail}`}
+                    className="break-all"
+                  >
                     {order.customerEmail}
                   </a>
                 </Descriptions.Item>
@@ -329,7 +396,11 @@ export function OrderDetail({ orderId }: { orderId: string }) {
                   </a>
                 </Descriptions.Item>
               )}
-              {order.note && <Descriptions.Item label="Ghi chú">{order.note}</Descriptions.Item>}
+              {order.note && (
+                <Descriptions.Item label="Ghi chú">
+                  {order.note}
+                </Descriptions.Item>
+              )}
             </Descriptions>
           </section>
 

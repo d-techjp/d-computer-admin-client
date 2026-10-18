@@ -6,7 +6,11 @@ import { Save } from "lucide-react";
 import { useForm } from "react-hook-form";
 
 import { PageHeader } from "@/components/common/PageHeader";
-import { TextAreaField, TextField, type UploadedImage } from "@/components/form/fields";
+import {
+  TextAreaField,
+  TextField,
+  type UploadedImage,
+} from "@/components/form/fields";
 import { fetchSiteSettings, updateSiteSettings } from "@/lib/api/siteSettings";
 import { uploadImage } from "@/lib/api/uploads";
 import type { FooterColumn, SiteSettings } from "@/types/siteSettings";
@@ -26,6 +30,7 @@ interface SiteInfoFormValues {
   companyName: string;
   phone: string;
   address: string;
+  invoiceRegistrationNumber: string;
   socialLinks: SocialLinkFormValue[];
   footerColumns: FooterColumn[];
 }
@@ -35,6 +40,7 @@ function toFormValues(settings: SiteSettings): SiteInfoFormValues {
     companyName: settings.companyName,
     phone: settings.phone,
     address: settings.address,
+    invoiceRegistrationNumber: settings.invoiceRegistrationNumber,
     socialLinks: settings.socialLinks.map((link) => ({
       id: link.id,
       name: link.name,
@@ -42,7 +48,14 @@ function toFormValues(settings: SiteSettings): SiteInfoFormValues {
       // Logo đã lưu quay lại form dưới dạng `UploadedImage` không kèm `file`
       // — nghĩa là "giữ nguyên URL cũ" nếu admin không đổi ảnh.
       logo: link.logoUrl
-        ? [{ id: link.id ?? link.logoUrl, name: link.name, url: link.logoUrl, size: 0 }]
+        ? [
+            {
+              id: link.id ?? link.logoUrl,
+              name: link.name,
+              url: link.logoUrl,
+              size: 0,
+            },
+          ]
         : [],
     })),
     footerColumns: settings.footerColumns,
@@ -53,6 +66,7 @@ const EMPTY_FORM: SiteInfoFormValues = {
   companyName: "",
   phone: "",
   address: "",
+  invoiceRegistrationNumber: "",
   socialLinks: [],
   footerColumns: [],
 };
@@ -66,9 +80,10 @@ export default function SiteInfoPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  const { control, handleSubmit, reset, formState } = useForm<SiteInfoFormValues>({
-    defaultValues: EMPTY_FORM,
-  });
+  const { control, handleSubmit, reset, formState } =
+    useForm<SiteInfoFormValues>({
+      defaultValues: EMPTY_FORM,
+    });
 
   useEffect(() => {
     let cancelled = false;
@@ -80,7 +95,9 @@ export default function SiteInfoPage() {
         .catch((error) => {
           if (!cancelled) {
             message.error(
-              error instanceof Error ? error.message : "Không tải được thông tin cửa hàng",
+              error instanceof Error
+                ? error.message
+                : "Không tải được thông tin cửa hàng",
             );
           }
         })
@@ -112,6 +129,9 @@ export default function SiteInfoPage() {
         companyName: values.companyName,
         phone: values.phone,
         address: values.address,
+        invoiceRegistrationNumber: values.invoiceRegistrationNumber
+          .trim()
+          .toUpperCase(),
         socialLinks,
         footerColumns: values.footerColumns,
       });
@@ -119,7 +139,9 @@ export default function SiteInfoPage() {
       message.success("Đã lưu thông tin cửa hàng");
     } catch (error) {
       message.error(
-        error instanceof Error ? error.message : "Không lưu được thông tin cửa hàng",
+        error instanceof Error
+          ? error.message
+          : "Không lưu được thông tin cửa hàng",
       );
     } finally {
       setSubmitting(false);
@@ -184,14 +206,37 @@ export default function SiteInfoPage() {
             rows={2}
             rules={{ required: "Vui lòng nhập địa chỉ công ty" }}
           />
+
+          <TextField
+            name="invoiceRegistrationNumber"
+            control={control}
+            label="Số đăng ký インボイス"
+            placeholder="T1234567890123"
+            disabled={submitting}
+            helpText="適格請求書発行事業者登録番号 — in trên bill bán tại quầy. Để trống nếu chưa đăng ký"
+            rules={{
+              pattern: {
+                value: /^(T\d{13})?$/i,
+                message: "Gồm chữ T và 13 chữ số, vd T1234567890123",
+              },
+            }}
+          />
         </section>
 
         <section className="bg-card border-line shadow-card space-y-4 rounded-lg border p-4">
-          <SocialLinksField control={control} name="socialLinks" disabled={submitting} />
+          <SocialLinksField
+            control={control}
+            name="socialLinks"
+            disabled={submitting}
+          />
         </section>
 
         <section className="bg-card border-line shadow-card space-y-4 rounded-lg border p-4">
-          <FooterColumnsField control={control} name="footerColumns" disabled={submitting} />
+          <FooterColumnsField
+            control={control}
+            name="footerColumns"
+            disabled={submitting}
+          />
         </section>
       </form>
     </>
