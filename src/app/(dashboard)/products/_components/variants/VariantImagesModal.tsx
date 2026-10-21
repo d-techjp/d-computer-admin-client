@@ -93,7 +93,7 @@ export function VariantImagesModal({
         valid.push(file);
       }
 
-      // Cắt về 4:3 như ảnh sản phẩm — ảnh biến thể hiển thị trong cùng khung ở
+      // Cắt về khung chuẩn như ảnh sản phẩm — ảnh biến thể hiển thị trong cùng khung ở
       // storefront. Ảnh đã lưu trên R2 giữ nguyên, chỉ file mới chọn mới qua đây.
       const accepted: ImageEntry[] = await Promise.all(
         (await cropFiles(valid)).map(async (file) => ({

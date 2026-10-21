@@ -9,17 +9,21 @@ import type { Area, MediaSize, Point, Size } from "react-easy-crop";
 import {
   cropImageToFile,
   PRODUCT_IMAGE_ASPECT,
+  PRODUCT_IMAGE_ASPECT_LABEL,
   PRODUCT_IMAGE_OUTPUT_HEIGHT,
   PRODUCT_IMAGE_OUTPUT_WIDTH,
-  PRODUCT_IMAGE_SAFE_PADDING,
   resolveOutputSize,
   type CropBackground,
 } from "@/lib/imageCrop";
 import { cn } from "@/lib/utils";
 
-/** Thu nhỏ tối đa so với mức "vừa khung" để chừa thêm khoảng trống quanh sản phẩm */
-const MIN_ZOOM_RATIO = 0.5;
-/** Phóng to tối đa so với mức "vừa khung" */
+/**
+ * Không cho thu nhỏ dưới mức "phủ kín khung": card storefront hiển thị ảnh
+ * bằng `object-cover`, nên phần khung không có ảnh sẽ thành dải nền trắng nằm
+ * luôn trong file ảnh và lộ ra ở mép card.
+ */
+const MIN_ZOOM_RATIO = 1;
+/** Phóng to tối đa so với mức "phủ kín khung" */
 const MAX_ZOOM_RATIO = 3;
 
 const CENTER: Point = { x: 0, y: 0 };
@@ -48,13 +52,13 @@ interface ProductImageCropperProps {
 }
 
 /**
- * Cắt ảnh sản phẩm về 4:3 ngang trước khi ảnh vào preview/draft của form.
+ * Cắt ảnh sản phẩm về khung chuẩn ({@link PRODUCT_IMAGE_ASPECT}) trước khi ảnh vào preview/draft của form.
  *
- * Mặc định mở ở mức "vừa khung": toàn bộ ảnh gốc nằm trong khung 4:3, phần
- * thừa lấp bằng nền — không tấm nào bị cắt mất sản phẩm nếu người dùng bấm xác
- * nhận ngay. Muốn cắt sát hơn thì kéo ảnh và phóng to bằng slider; khung nét
- * đứt bên trong là vùng an toàn {@link PRODUCT_IMAGE_SAFE_PADDING}, giữ sản
- * phẩm bên trong nó thì listing desktop (khung vuông) vẫn hiển thị trọn vẹn.
+ * Ảnh luôn phủ kín khung (mở ở mức vừa phủ kín, không thu nhỏ hơn được và
+ * không kéo được ra ngoài khung) — ảnh xuất ra vì vậy không bao giờ có dải nền
+ * lấp ở mép. Ảnh gốc khác tỉ lệ khung thì phần thừa bị cắt bỏ, người dùng kéo ảnh
+ * để chọn phần giữ lại. Ô "Xem trước" vẽ đúng vùng sẽ xuất ra, để người dùng
+ * không nhầm khung cắt với vùng nào khác trong ảnh.
  *
  * Chỉ áp dụng cho file mới chọn từ máy; ảnh đã có URL từ backend không bị bắt
  * cắt lại (xem `useProductImageCropper`).
@@ -71,7 +75,7 @@ export function ProductImageCropper({
   const [crop, setCrop] = useState<Point>(CENTER);
   /**
    * Zoom được giữ **tương đối** so với mức "vừa khung" (1 = trọn ảnh trong
-   * khung 4:3): mức tuyệt đối chỉ tính được sau khi ảnh tải xong, mà chỉnh lại
+   * khung): mức tuyệt đối chỉ tính được sau khi ảnh tải xong, mà chỉnh lại
    * state theo sau đó thì phải dùng effect + setState — vòng render thừa và
    * react-hooks/set-state-in-effect chặn. Cách này cho luôn mặc định đúng ngay
    * từ lần render đầu và slider cũng đọc thẳng ra phần trăm.
@@ -80,6 +84,8 @@ export function ProductImageCropper({
   const [mediaSize, setMediaSize] = useState<MediaSize>();
   const [cropSize, setCropSize] = useState<Size>();
   const [area, setArea] = useState<Area>();
+  /** Cùng vùng cắt nhưng theo % ảnh gốc — dùng để vẽ ô xem trước */
+  const [areaPercent, setAreaPercent] = useState<Area>();
   const [background, setBackground] = useState<CropBackground>("white");
   const [exporting, setExporting] = useState(false);
 
@@ -93,16 +99,17 @@ export function ProductImageCropper({
     setMediaSize(undefined);
     setCropSize(undefined);
     setArea(undefined);
+    setAreaPercent(undefined);
     setBackground("white");
   }
 
   const imageUrl = useMemo(() => (file ? URL.createObjectURL(file) : undefined), [file]);
   useEffect(() => (imageUrl ? () => URL.revokeObjectURL(imageUrl) : undefined), [imageUrl]);
 
-  /** Mức zoom vừa đủ để trọn ảnh gốc lọt vào khung 4:3 — gốc quy chiếu của slider */
+  /** Mức zoom vừa đủ để ảnh phủ kín khung — gốc quy chiếu của slider */
   const fitZoom =
     mediaSize && cropSize
-      ? Math.min(cropSize.width / mediaSize.width, cropSize.height / mediaSize.height)
+      ? Math.max(cropSize.width / mediaSize.width, cropSize.height / mediaSize.height)
       : undefined;
   const zoom = (fitZoom ?? 1) * zoomRatio;
 
@@ -115,7 +122,10 @@ export function ProductImageCropper({
     );
   }, []);
 
-  const onCropComplete = useCallback((_: Area, pixels: Area) => setArea(pixels), []);
+  const onCropComplete = useCallback((percent: Area, pixels: Area) => {
+    setAreaPercent(percent);
+    setArea(pixels);
+  }, []);
 
   const reset = () => {
     setZoomRatio(1);
@@ -160,11 +170,10 @@ export function ProductImageCropper({
       {file && (
         <div className="space-y-3 pt-2">
           <p className="text-muted text-sm">
-            Ảnh sản phẩm dùng chung một khung 4:3 cho thumbnail, thư viện ảnh và ảnh biến
-            thể. Kéo ảnh để chỉnh vị trí, dùng thanh trượt để phóng to — giữ sản phẩm nằm
-            trong khung nét đứt và chừa khoảng trống quanh sản phẩm khoảng{" "}
-            {Math.round(PRODUCT_IMAGE_SAFE_PADDING * 100) - 2}–
-            {Math.round(PRODUCT_IMAGE_SAFE_PADDING * 100) + 2}%.
+            Ảnh sản phẩm dùng chung một khung {PRODUCT_IMAGE_ASPECT_LABEL} cho thumbnail, thư viện ảnh và ảnh biến
+            thể. Ảnh xuất ra là toàn bộ phần nằm trong khung viền xanh — kéo ảnh để chọn
+            phần giữ lại, phóng to bằng thanh trượt để cắt bớt (ví dụ bỏ chân case hay dải
+            nền thừa). Kiểm tra lại ở ô Xem trước trước khi dùng ảnh.
           </p>
 
           <div className="bg-subtle border-line relative h-[340px] w-full overflow-hidden rounded-lg border">
@@ -176,9 +185,8 @@ export function ProductImageCropper({
                 zoom={zoom}
                 minZoom={(fitZoom ?? 1) * MIN_ZOOM_RATIO}
                 maxZoom={(fitZoom ?? 1) * MAX_ZOOM_RATIO}
-                // Cho phép kéo ảnh ra ngoài khung để lấy trọn sản phẩm kèm
-                // khoảng trống; phần khung không có ảnh được lấp bằng nền.
-                restrictPosition={false}
+                // Không cho kéo ảnh hở khung — hở chỗ nào là chỗ đó thành nền trắng.
+                restrictPosition
                 showGrid={false}
                 zoomWithScroll
                 onCropChange={setCrop}
@@ -190,29 +198,15 @@ export function ProductImageCropper({
                   "aria-label":
                     "Vùng cắt ảnh sản phẩm — dùng phím mũi tên để chỉnh vị trí",
                 }}
-                // Nền của khung chứa lộ ra đúng ở phần khung 4:3 không có ảnh,
-                // nên xem trước được luôn phần nền sẽ nằm trong ảnh xuất ra.
-                style={{ containerStyle: BACKGROUND_PREVIEW[background] }}
+                // Ảnh đã phủ kín khung nên nền chỉ lộ ra qua vùng trong suốt của
+                // ảnh PNG/WebP — xem trước được phần nền sẽ nằm trong ảnh xuất ra.
+                style={{
+                  containerStyle: BACKGROUND_PREVIEW[background],
+                  // Viền mặc định trắng mờ chìm mất trên ảnh nền sáng, trông như
+                  // không có khung — dùng màu brand cho rõ ranh giới vùng xuất ra.
+                  cropAreaStyle: { border: "2px solid var(--color-brand)" },
+                }}
               />
-            )}
-
-            {/* Vùng an toàn: khung nét đứt lồng bên trong khung cắt 4:3 */}
-            {cropSize && (
-              <div
-                aria-hidden
-                className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-                style={{ width: cropSize.width, height: cropSize.height }}
-              >
-                {/*
-                 * Nền trong khung cắt là ảnh sản phẩm trên nền trắng nên viền
-                 * trắng chìm mất — dùng màu brand kèm quầng tối mảnh để nét đứt
-                 * còn thấy được cả trên nền sáng lẫn trên ảnh tối.
-                 */}
-                <div
-                  className="border-brand absolute rounded-sm border-2 border-dashed shadow-[0_0_0_1px_rgb(0_0_0/0.25)]"
-                  style={{ inset: `${PRODUCT_IMAGE_SAFE_PADDING * 100}%` }}
-                />
-              </div>
             )}
           </div>
 
@@ -229,7 +223,7 @@ export function ProductImageCropper({
               ariaLabelForHandle="Mức thu phóng ảnh"
               tooltip={{ formatter: (value) => `${Math.round((value ?? 1) * 100)}%` }}
             />
-            <Tooltip title="Đưa ảnh về vị trí và mức thu phóng mặc định (vừa khung)">
+            <Tooltip title="Đưa ảnh về giữa và mức thu phóng mặc định (vừa phủ kín khung)">
               <Button
                 size="small"
                 icon={<RotateCcw size={14} />}
@@ -241,7 +235,30 @@ export function ProductImageCropper({
             </Tooltip>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="space-y-1">
+              <span className="text-muted block text-xs">Xem trước (đúng ảnh sẽ lưu)</span>
+              <div
+                className="border-line relative w-40 overflow-hidden rounded border"
+                style={{ ...BACKGROUND_PREVIEW[background], aspectRatio: PRODUCT_IMAGE_ASPECT }}
+              >
+                {imageUrl && areaPercent && areaPercent.width > 0 && (
+                  // eslint-disable-next-line @next/next/no-img-element -- blob URL cục bộ, không qua next/image
+                  <img
+                    src={imageUrl}
+                    alt=""
+                    className="absolute max-w-none"
+                    style={{
+                      width: `${10000 / areaPercent.width}%`,
+                      height: `${10000 / areaPercent.height}%`,
+                      left: `${(-areaPercent.x * 100) / areaPercent.width}%`,
+                      top: `${(-areaPercent.y * 100) / areaPercent.height}%`,
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+
             <div className="flex items-center gap-2">
               <span className="text-muted text-xs">Nền</span>
               <Segmented
@@ -269,7 +286,7 @@ export function ProductImageCropper({
               <span>
                 Vùng đang chọn chỉ có {output?.width} px chiều ngang, nhỏ hơn chuẩn{" "}
                 {PRODUCT_IMAGE_OUTPUT_WIDTH} × {PRODUCT_IMAGE_OUTPUT_HEIGHT}. Ảnh vẫn đúng
-                tỉ lệ 4:3 nhưng không được phóng to lên cho khỏi mờ — thu nhỏ bớt hoặc
+                tỉ lệ khung nhưng không được phóng to lên cho khỏi mờ — thu nhỏ bớt hoặc
                 chọn ảnh gốc lớn hơn nếu cần ảnh nét.
               </span>
             </p>

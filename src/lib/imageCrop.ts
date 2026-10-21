@@ -1,28 +1,23 @@
 /**
- * Cắt ảnh sản phẩm về khung 4:3 ngay trên trình duyệt, trước khi file được đưa
- * vào preview/draft của form. Đứng cạnh `imageUpload.ts` (validate định dạng +
- * dung lượng) để mọi nơi chọn ảnh sản phẩm cùng dùng một chuẩn đầu ra.
+ * Cắt ảnh sản phẩm về khung vuông 1:1 ngay trên trình duyệt, trước khi file
+ * được đưa vào preview/draft của form. Đứng cạnh `imageUpload.ts` (validate
+ * định dạng + dung lượng) để mọi nơi chọn ảnh sản phẩm cùng dùng một chuẩn đầu ra.
  *
- * Vì sao 4:3: storefront hiển thị ảnh sản phẩm trong khung 4:3 ở trang chi tiết
- * và card mobile, còn listing desktop dùng khung vuông với `object-contain` —
- * ảnh 4:3 dùng lại được cho cả thumbnail, gallery lẫn ảnh biến thể mà không chỗ
- * nào bị cắt cụt.
+ * Vì sao 1:1: card sản phẩm (`object-cover`) và ảnh chính ở trang chi tiết của
+ * storefront đều dùng khung vuông — vuông đủ cao cho case PC đứng mà laptop,
+ * chuột, bàn phím vẫn không bị thừa quá nhiều. Đổi tỉ lệ ở đây thì phải đổi
+ * `aspect-*` của hai chỗ đó cùng lúc, lệch nhau là card cắt mất ảnh hoặc lộ nền.
  */
 
 import { MAX_IMAGE_SIZE_MB } from "./imageUpload";
 
-export const PRODUCT_IMAGE_ASPECT = 4 / 3;
+export const PRODUCT_IMAGE_ASPECT = 1;
+/** Tên tỉ lệ hiển thị cho người dùng, đi cùng {@link PRODUCT_IMAGE_ASPECT} */
+export const PRODUCT_IMAGE_ASPECT_LABEL = "vuông 1:1";
 export const PRODUCT_IMAGE_OUTPUT_WIDTH = 1600;
-export const PRODUCT_IMAGE_OUTPUT_HEIGHT = 1200;
+export const PRODUCT_IMAGE_OUTPUT_HEIGHT = 1600;
 
-/**
- * Khoảng trống nên chừa quanh sản phẩm ở mỗi cạnh (8–12%): listing desktop đặt
- * ảnh trong khung vuông nên hai mép trái/phải bị thu lại, sản phẩm sát mép sẽ
- * trông như bị cắt.
- */
-export const PRODUCT_IMAGE_SAFE_PADDING = 0.1;
-
-/** Nền lấp phần khung 4:3 không được ảnh gốc phủ kín */
+/** Nền lấp phần trong suốt của ảnh gốc */
 export type CropBackground = "white" | "transparent";
 
 /** Vùng cắt tính theo pixel của ảnh gốc — đúng dạng `croppedAreaPixels` của react-easy-crop */
@@ -55,7 +50,7 @@ const MAX_OUTPUT_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
 /**
  * Không phóng to ảnh nhỏ lên 1600px — làm vậy chỉ khiến ảnh mờ chứ không thêm
  * chi tiết. Ảnh thiếu độ phân giải được xuất đúng bằng số pixel thật của vùng
- * cắt, vẫn giữ nguyên tỉ lệ 4:3 (UI cảnh báo người dùng ở `ProductImageCropper`).
+ * cắt, vẫn giữ nguyên tỉ lệ khung (UI cảnh báo người dùng ở `ProductImageCropper`).
  */
 export function resolveOutputSize(cropWidth: number) {
   const width = Math.max(1, Math.min(PRODUCT_IMAGE_OUTPUT_WIDTH, Math.round(cropWidth)));

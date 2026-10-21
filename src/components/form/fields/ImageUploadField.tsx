@@ -2,8 +2,8 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { App, Button, Tooltip } from "antd";
-import { ImagePlus, Pencil, Star, Trash2, Upload } from "lucide-react";
+import { App, Button, Image as AntImage, Tooltip } from "antd";
+import { ImagePlus, Pencil, Star, Trash2, Upload, ZoomIn } from "lucide-react";
 import type { FieldValues } from "react-hook-form";
 import { useController } from "react-hook-form";
 
@@ -15,6 +15,7 @@ import {
   MAX_IMAGE_SIZE_MB,
   readAsDataUrl,
 } from "@/lib/imageUpload";
+import { PRODUCT_IMAGE_ASPECT_LABEL } from "@/lib/imageCrop";
 import { cn } from "@/lib/utils";
 
 import { FormItemLayout } from "../FormItemLayout";
@@ -37,7 +38,7 @@ interface ImageUploadFieldProps<T extends FieldValues> extends BaseFieldProps<T>
   /** Ảnh bắt buộc giữ lại; nút thao tác chỉ cho thay ảnh hiện tại. */
   replaceOnly?: boolean;
   /**
-   * Bắt buộc cắt ảnh mới chọn về khung 4:3 chuẩn ảnh sản phẩm trước khi vào
+   * Bắt buộc cắt ảnh mới chọn về khung chuẩn ảnh sản phẩm trước khi vào
    * preview. Chỉ bật ở ảnh sản phẩm/biến thể — ảnh bìa bài viết dùng 16:9 nên
    * để nguyên.
    */
@@ -73,6 +74,8 @@ export function ImageUploadField<T extends FieldValues>({
   const replaceIndexRef = useRef<number | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  /** Vị trí ảnh đang xem phóng to; `null` là đang đóng preview */
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
   const { field, fieldState } = useController({ name, control, rules });
   // useMemo để tham chiếu mảng ổn định giữa các lần render, tránh tạo lại callback
@@ -102,7 +105,7 @@ export function ImageUploadField<T extends FieldValues>({
         valid.push(file);
       }
 
-      // Cắt về 4:3 trước khi ảnh vào preview/draft, nên từ đây trở đi luồng cũ
+      // Cắt về khung chuẩn trước khi ảnh vào preview/draft, nên từ đây trở đi luồng cũ
       // không đổi: vẫn là File trong value, upload lúc submit. Ảnh bị bỏ qua ở
       // bước cắt thì không được thêm vào danh sách.
       const ready = crop ? await cropFiles(valid) : valid;
@@ -159,6 +162,24 @@ export function ImageUploadField<T extends FieldValues>({
 
   const isFull = images.length >= maxCount;
 
+  const pickReplacement = (index: number) => {
+    replaceIndexRef.current = index;
+    inputRef.current?.click();
+  };
+
+  const replaceButton = (index: number) => (
+    <Tooltip title="Thay ảnh khác">
+      <Button
+        size="small"
+        type="text"
+        disabled={disabled}
+        aria-label="Thay ảnh"
+        icon={<Pencil size={15} />}
+        onClick={() => pickReplacement(index)}
+      />
+    </Tooltip>
+  );
+
   return (
     <FormItemLayout
       label={label}
@@ -167,7 +188,7 @@ export function ImageUploadField<T extends FieldValues>({
       helpText={
         (helpText ??
           `Tối đa ${maxCount} ảnh, mỗi ảnh dưới ${MAX_IMAGE_SIZE_MB}MB. Kéo ảnh để đổi thứ tự, bấm ngôi sao để chọn ảnh đại diện.`) +
-        (crop ? " Ảnh mới chọn được cắt về khung 4:3 trước khi thêm." : "")
+        (crop ? ` Ảnh mới chọn được cắt về khung ${PRODUCT_IMAGE_ASPECT_LABEL} trước khi thêm.` : "")
       }
       className={className}
     >
@@ -198,10 +219,13 @@ export function ImageUploadField<T extends FieldValues>({
                   draggable={!disabled}
                   onDragStart={() => setDragIndex(index)}
                   onDragEnd={() => setDragIndex(null)}
+                  // Kéo-thả xong trình duyệt không bắn click, nên bấm vào ảnh
+                  // để xem lớn không đụng tới thao tác đổi thứ tự.
+                  onClick={() => setPreviewIndex(index)}
+                  title="Bấm để xem ảnh lớn"
                   className={cn(
-                    "bg-subtle relative w-full",
+                    "bg-subtle group relative w-full cursor-zoom-in",
                     compact ? "h-16" : "h-28",
-                    !disabled && "cursor-grab active:cursor-grabbing",
                   )}
                 >
                   <Image
@@ -212,6 +236,10 @@ export function ImageUploadField<T extends FieldValues>({
                     sizes={compact ? "80px" : "144px"}
                     className="object-cover"
                   />
+
+                  <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/35 text-white opacity-0 transition-opacity group-hover:opacity-100">
+                    <ZoomIn size={compact ? 16 : 22} />
+                  </span>
 
                   {isCover && (
                     <span className="bg-brand absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold text-white">
@@ -249,42 +277,33 @@ export function ImageUploadField<T extends FieldValues>({
                     {index + 1}/{images.length}
                   </span>
 
-                  {replaceOnly ? (
-                    <Tooltip title="Thay ảnh">
-                      <Button
-                        size="small"
-                        type="text"
-                        disabled={disabled}
-                        aria-label="Thay ảnh"
-                        icon={<Pencil size={15} />}
-                        onClick={() => {
-                          replaceIndexRef.current = index;
-                          inputRef.current?.click();
-                        }}
-                      />
-                    </Tooltip>
-                  ) : (
-                    <Tooltip
-                      title={
-                        canRemove
-                          ? "Xoá ảnh"
-                          : `Phải giữ lại ít nhất ${minCount} ảnh — thêm ảnh mới trước rồi mới xoá ảnh này`
-                      }
-                    >
-                      {/* span để tooltip vẫn hiện khi nút bị disable */}
-                      <span className="inline-flex">
-                        <Button
-                          size="small"
-                          type="text"
-                          danger
-                          disabled={disabled || !canRemove}
-                          aria-label="Xoá ảnh"
-                          icon={<Trash2 size={15} />}
-                          onClick={() => confirmRemoveAt(index)}
-                        />
-                      </span>
-                    </Tooltip>
-                  )}
+                  <span className="inline-flex items-center">
+                    {/* Thẻ compact chỉ rộng 80px, không đủ chỗ cho cả 2 nút */}
+                    {(replaceOnly || !compact) && replaceButton(index)}
+
+                    {!replaceOnly && (
+                      <Tooltip
+                        title={
+                          canRemove
+                            ? "Xoá ảnh"
+                            : `Phải giữ lại ít nhất ${minCount} ảnh — thêm ảnh mới trước rồi mới xoá ảnh này`
+                        }
+                      >
+                        {/* span để tooltip vẫn hiện khi nút bị disable */}
+                        <span className="inline-flex">
+                          <Button
+                            size="small"
+                            type="text"
+                            danger
+                            disabled={disabled || !canRemove}
+                            aria-label="Xoá ảnh"
+                            icon={<Trash2 size={15} />}
+                            onClick={() => confirmRemoveAt(index)}
+                          />
+                        </span>
+                      </Tooltip>
+                    )}
+                  </span>
                 </figcaption>
               </figure>
             );
@@ -334,6 +353,19 @@ export function ImageUploadField<T extends FieldValues>({
             void addFiles(event.target.files, replaceIndex ?? undefined);
             // Reset để chọn lại đúng file vừa xoá vẫn kích hoạt onChange
             event.target.value = "";
+          }}
+        />
+
+        {/* Preview dùng chung cho cả danh sách, mở ở ảnh vừa bấm và lướt được sang ảnh khác */}
+        <AntImage.PreviewGroup
+          items={images.map((image) => image.url)}
+          preview={{
+            visible: previewIndex !== null,
+            current: previewIndex ?? 0,
+            onVisibleChange: (visible) => {
+              if (!visible) setPreviewIndex(null);
+            },
+            onChange: (current) => setPreviewIndex(current),
           }}
         />
 

@@ -202,19 +202,19 @@ export function GeneralTab({
                 options={brandOptions}
                 rules={{ required: "Vui lòng chọn thương hiệu" }}
               />
+              <CheckboxField
+                name="isFeatured"
+                control={control}
+                label="Nổi bật"
+                text="Hiển thị ở khu vực sản phẩm nổi bật"
+                disabled={submitting}
+              />
               <SwitchField
                 name="active"
                 control={control}
                 label="Cho phép bán"
                 checkedLabel="Đang bán"
                 uncheckedLabel="Chưa bán"
-                disabled={submitting}
-              />
-              <CheckboxField
-                name="isFeatured"
-                control={control}
-                label="Nổi bật"
-                text="Hiển thị ở khu vực sản phẩm nổi bật"
                 disabled={submitting}
               />
             </div>
@@ -224,6 +224,7 @@ export function GeneralTab({
               control={control}
               label="Mô tả ngắn"
               maxLength={500}
+              className="resizable-short-description"
               disabled={submitting}
             />
           </section>
