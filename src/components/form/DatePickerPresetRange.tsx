@@ -7,6 +7,7 @@ import dayjs, { type Dayjs } from "dayjs";
 import { FormItemLayout } from "./FormItemLayout";
 
 export type DateRangePreset =
+  | "all"
   | "today"
   | "yesterday"
   | "last7"
@@ -20,6 +21,9 @@ export interface DateRangeSearchValue {
   from?: string;
   to?: string;
 }
+
+/** "Tất cả" nằm đầu danh sách, chỉ hiện khi trang bật `allowAll` */
+const ALL_OPTION = { label: "Tất cả thời gian", value: "all" as const };
 
 const PRESET_OPTIONS: { label: string; value: DateRangePreset }[] = [
   { label: "Hôm nay", value: "today" },
@@ -37,6 +41,9 @@ export function resolvePreset(preset: DateRangePreset): DateRangeSearchValue {
   const iso = (d: Dayjs) => d.format("YYYY-MM-DD");
 
   switch (preset) {
+    // Không giới hạn ngày: không gửi from/to, backend coi khoảng ngày là tuỳ chọn
+    case "all":
+      return { preset };
     case "today":
       return { preset, from: iso(today), to: iso(today) };
     case "yesterday": {
@@ -73,6 +80,11 @@ interface DatePickerPresetRangeProps {
   value: DateRangeSearchValue;
   onChange: (value: DateRangeSearchValue) => void;
   className?: string;
+  /**
+   * Cho chọn "Tất cả thời gian". Chỉ bật ở trang danh sách — dashboard luôn
+   * cần một khoảng ngày cụ thể để vẽ biểu đồ.
+   */
+  allowAll?: boolean;
 }
 
 /**
@@ -85,7 +97,10 @@ export function DatePickerPresetRange({
   value,
   onChange,
   className,
+  allowAll = false,
 }: DatePickerPresetRangeProps) {
+  const options = allowAll ? [ALL_OPTION, ...PRESET_OPTIONS] : PRESET_OPTIONS;
+
   const rangeValue = useMemo<[Dayjs, Dayjs] | undefined>(() => {
     if (!value.from || !value.to) return undefined;
     return [dayjs(value.from), dayjs(value.to)];
@@ -96,7 +111,7 @@ export function DatePickerPresetRange({
       <Space.Compact className="w-full">
         <Select
           value={value.preset}
-          options={PRESET_OPTIONS}
+          options={options}
           onChange={(preset) => onChange(resolvePreset(preset))}
           className={value.preset === "custom" ? "w-[45%]" : "w-full"}
         />

@@ -277,6 +277,7 @@ export function InventoryLedgerPage({ type, title, description }: InventoryLedge
         </FormItemLayout>
 
         <DatePickerPresetRange
+          allowAll
           label="Thời gian"
           value={filters.dateRange}
           onChange={(dateRange) => setFilters((current) => ({ ...current, dateRange }))}

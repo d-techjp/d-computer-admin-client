@@ -384,6 +384,7 @@ export default function OrdersPage() {
         </FormItemLayout>
 
         <DatePickerPresetRange
+          allowAll
           label="Ngày đặt hàng"
           value={filters.dateRange}
           onChange={(dateRange) =>

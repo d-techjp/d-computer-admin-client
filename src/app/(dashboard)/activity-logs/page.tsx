@@ -324,6 +324,7 @@ export default function ActivityLogsPage() {
         </FormItemLayout>
 
         <DatePickerPresetRange
+          allowAll
           label="Thời gian"
           value={filters.dateRange}
           onChange={(dateRange) => patchFilters({ dateRange })}
