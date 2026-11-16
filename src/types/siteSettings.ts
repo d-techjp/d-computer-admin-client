@@ -29,6 +29,8 @@ export interface SiteSettings {
   companyName: string;
   phone: string;
   address: string;
+  /** Email hỗ trợ: Reply-To của mail gửi khách + in ở footer mail; rỗng = không có */
+  supportEmail: string;
   /** Số đăng ký インボイス (T + 13 số) in trên bill; rỗng = chưa đăng ký */
   invoiceRegistrationNumber: string;
   socialLinks: SocialLink[];

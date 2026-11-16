@@ -63,6 +63,10 @@ export const routes = {
 
   activityLogs: "/activity-logs",
 
+  settings: {
+    notifications: "/settings/notifications",
+  },
+
   auth: {
     login: "/login",
   },

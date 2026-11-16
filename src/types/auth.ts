@@ -23,7 +23,8 @@ export type AppPermission =
   | "articles.manage"
   | "orders.manage"
   | "inventory.manage"
-  | "logs.view";
+  | "logs.view"
+  | "settings.manage";
 
 export const APP_PERMISSIONS: readonly AppPermission[] = [
   "dashboard.view",
@@ -41,6 +42,7 @@ export const APP_PERMISSIONS: readonly AppPermission[] = [
   "orders.manage",
   "inventory.manage",
   "logs.view",
+  "settings.manage",
 ] as const;
 
 export const APP_PERMISSION_LABEL: Record<AppPermission, string> = {
@@ -59,6 +61,7 @@ export const APP_PERMISSION_LABEL: Record<AppPermission, string> = {
   "orders.manage": "Quản lý đơn hàng",
   "inventory.manage": "Quản lý kho",
   "logs.view": "Xem nhật ký hoạt động",
+  "settings.manage": "Quản lý cài đặt hệ thống",
 };
 
 export const AUTH_ROLE_LABEL: Record<AuthRole, string> = {

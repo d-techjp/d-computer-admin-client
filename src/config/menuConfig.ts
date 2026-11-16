@@ -1,4 +1,5 @@
 import {
+  Bell,
   Boxes,
   Building2,
   FileText,
@@ -12,6 +13,7 @@ import {
   KeyRound,
   PackagePlus,
   ScrollText,
+  Settings,
   ShieldCheck,
   ShoppingCart,
   Store,
@@ -117,7 +119,7 @@ export const menuConfig: MenuItemConfig[] = [
         key: "campaigns-tiktok",
         label: "Tiktok",
         icon: Video,
-        path: routes.campaigns.tiktok, 
+        path: routes.campaigns.tiktok,
       },
       {
         key: "campaigns-site-info",
@@ -181,6 +183,19 @@ export const menuConfig: MenuItemConfig[] = [
     label: "Nhật ký hoạt động",
     icon: ScrollText,
     path: routes.activityLogs,
+  },
+  {
+    key: "settings",
+    label: "Cài đặt",
+    icon: Settings,
+    children: [
+      {
+        key: "settings-notifications",
+        label: "Thông báo",
+        icon: Bell,
+        path: routes.settings.notifications,
+      },
+    ],
   },
 ];
 

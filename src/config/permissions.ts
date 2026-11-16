@@ -41,6 +41,8 @@ export const ROUTE_PERMISSIONS: RoutePermissionRule[] = [
   { path: routes.warehouse.index, permission: "inventory.manage" },
   { path: routes.posts.index, permission: "articles.manage" },
   { path: routes.activityLogs, permission: "logs.view" },
+  // Mặc định chỉ admin: nhân viên đổi hộp thư nhận đơn thì chủ shop mất thông báo
+  { path: routes.settings.notifications, permission: "settings.manage" },
 ];
 
 /** Ưu tiên rule có path dài nhất để route con không bị rule cha ăn trước */

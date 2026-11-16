@@ -30,6 +30,7 @@ interface SiteInfoFormValues {
   companyName: string;
   phone: string;
   address: string;
+  supportEmail: string;
   invoiceRegistrationNumber: string;
   socialLinks: SocialLinkFormValue[];
   footerColumns: FooterColumn[];
@@ -40,6 +41,7 @@ function toFormValues(settings: SiteSettings): SiteInfoFormValues {
     companyName: settings.companyName,
     phone: settings.phone,
     address: settings.address,
+    supportEmail: settings.supportEmail,
     invoiceRegistrationNumber: settings.invoiceRegistrationNumber,
     socialLinks: settings.socialLinks.map((link) => ({
       id: link.id,
@@ -66,6 +68,7 @@ const EMPTY_FORM: SiteInfoFormValues = {
   companyName: "",
   phone: "",
   address: "",
+  supportEmail: "",
   invoiceRegistrationNumber: "",
   socialLinks: [],
   footerColumns: [],
@@ -129,6 +132,7 @@ export default function SiteInfoPage() {
         companyName: values.companyName,
         phone: values.phone,
         address: values.address,
+        supportEmail: values.supportEmail.trim().toLowerCase(),
         invoiceRegistrationNumber: values.invoiceRegistrationNumber
           .trim()
           .toUpperCase(),
@@ -160,7 +164,7 @@ export default function SiteInfoPage() {
     <>
       <PageHeader
         title="Thông tin cửa hàng"
-        description="Tên công ty, hotline, địa chỉ, link mạng xã hội và cột điều hướng ở footer storefront"
+        description="Tên công ty, hotline, email hỗ trợ, địa chỉ, link mạng xã hội và cột điều hướng ở footer storefront"
         extra={
           <Button
             type="primary"
@@ -195,6 +199,21 @@ export default function SiteInfoPage() {
             disabled={submitting}
             helpText="Số điện thoại liên hệ hiển thị ở footer"
             rules={{ required: "Vui lòng nhập số điện thoại" }}
+          />
+
+          <TextField
+            name="supportEmail"
+            control={control}
+            label="Email hỗ trợ"
+            placeholder="support@d-techjp.com"
+            disabled={submitting}
+            helpText="Khách bấm “Trả lời” trên mail đơn hàng sẽ gửi về đây; cũng in ở cuối mail. Để trống nếu không dùng"
+            rules={{
+              pattern: {
+                value: /^\s*([^\s@]+@[^\s@]+\.[^\s@]+)?\s*$/,
+                message: "Email không hợp lệ",
+              },
+            }}
           />
 
           <TextAreaField

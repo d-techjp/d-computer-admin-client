@@ -40,6 +40,7 @@ export interface SiteSettingsPayload {
   companyName?: string;
   phone?: string;
   address?: string;
+  supportEmail?: string;
   invoiceRegistrationNumber?: string;
   socialLinks?: SocialLinkPayload[];
   footerColumns?: FooterColumnPayload[];
@@ -79,6 +80,7 @@ export function toSiteSettings(value: unknown): SiteSettings {
     companyName: asString(record.companyName),
     phone: asString(record.phone),
     address: asString(record.address),
+    supportEmail: asString(record.supportEmail),
     invoiceRegistrationNumber: asString(record.invoiceRegistrationNumber),
     socialLinks: asArray(record.socialLinks).map(toSocialLink),
     footerColumns: asArray(record.footerColumns).map(toFooterColumn),
@@ -94,9 +96,12 @@ export function updateSiteSettings(payload: SiteSettingsPayload) {
     method: "PATCH",
     body: {
       ...compactPayload(payload),
-      // Chuỗi rỗng là "xoá số đăng ký" — compactPayload sẽ bỏ mất nên gửi riêng
+      // Chuỗi rỗng là "xoá giá trị" — compactPayload sẽ bỏ mất nên gửi riêng
       ...(payload.invoiceRegistrationNumber !== undefined && {
         invoiceRegistrationNumber: payload.invoiceRegistrationNumber,
+      }),
+      ...(payload.supportEmail !== undefined && {
+        supportEmail: payload.supportEmail,
       }),
     },
   }).then(toSiteSettings);
