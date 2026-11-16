@@ -35,6 +35,11 @@ export const routes = {
     carousels: "/campaigns/carousels",
     tiktok: "/campaigns/tiktok",
     siteInfo: "/campaigns/site-info",
+    pages: {
+      index: "/campaigns/pages",
+      new: "/campaigns/pages/new",
+      detail: (id: string) => `/campaigns/pages/${id}`,
+    },
   },
 
   orders: {

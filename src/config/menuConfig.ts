@@ -1,6 +1,7 @@
 import {
   Boxes,
   Building2,
+  FileText,
   FolderTree,
   GalleryHorizontalEnd,
   LayoutDashboard,
@@ -123,6 +124,12 @@ export const menuConfig: MenuItemConfig[] = [
         label: "Thông tin cửa hàng",
         icon: Building2,
         path: routes.campaigns.siteInfo,
+      },
+      {
+        key: "campaigns-pages",
+        label: "Trang tĩnh",
+        icon: FileText,
+        path: routes.campaigns.pages.index,
       },
     ],
   },

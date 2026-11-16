@@ -32,6 +32,7 @@ export const ROUTE_PERMISSIONS: RoutePermissionRule[] = [
   // riêng khỏi `/campaigns` — mỗi mục là một module độc lập ở backend.
   { path: routes.campaigns.tiktok, permission: "campaign.tiktok.manage" },
   { path: routes.campaigns.siteInfo, permission: "site.settings.manage" },
+  { path: routes.campaigns.pages.index, permission: "site.pages.manage" },
   { path: routes.campaigns.index, permission: "product.carousel.manage" },
 
   { path: routes.orders.index, permission: "orders.manage" },
