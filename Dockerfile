@@ -14,6 +14,7 @@ COPY . .
 
 ENV NEXT_PUBLIC_API_BASE_URL=/api/v1/admin
 ENV NEXT_PUBLIC_SITE_URL=https://d-techjp.com
+ENV NEXT_PUBLIC_STRIPE_DASHBOARD_URL=https://dashboard.stripe.com
 
 RUN npm run build
 
