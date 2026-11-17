@@ -1,5 +1,6 @@
 import {
   Bell,
+  CreditCard,
   Boxes,
   Building2,
   FileText,
@@ -194,6 +195,12 @@ export const menuConfig: MenuItemConfig[] = [
         label: "Thông báo",
         icon: Bell,
         path: routes.settings.notifications,
+      },
+      {
+        key: "settings-payments",
+        label: "Thanh toán",
+        icon: CreditCard,
+        path: routes.settings.payments,
       },
     ],
   },

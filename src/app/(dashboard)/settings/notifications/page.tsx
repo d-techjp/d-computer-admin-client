@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { App, Button, Skeleton } from "antd";
-import { Plus, Save, Trash2 } from "lucide-react";
-import { useFieldArray, useForm } from "react-hook-form";
+import { useEffect, useState, type ReactNode } from "react";
+import { App, Button, Input, Skeleton } from "antd";
+import { Info, Mail, Plus, Save, Trash2 } from "lucide-react";
+import { Controller, useFieldArray, useForm } from "react-hook-form";
 
 import { PageHeader } from "@/components/common/PageHeader";
-import { TextField } from "@/components/form/fields";
 import {
   fetchNotificationSettings,
   MAX_ORDER_NOTIFY_EMAILS,
@@ -25,6 +24,14 @@ function toFormValues(settings: NotificationSettings): NotificationFormValues {
   return {
     orderNotifyEmails: settings.orderNotifyEmails.map((value) => ({ value })),
   };
+}
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <div className="text-muted bg-subtle flex items-center justify-between px-4 py-1.5 text-[11px] font-semibold tracking-wide uppercase">
+      {children}
+    </div>
+  );
 }
 
 /**
@@ -100,11 +107,13 @@ export default function NotificationSettingsPage() {
 
   if (loading) {
     return (
-      <div className="bg-card border-line shadow-card rounded-lg border p-6">
-        <Skeleton active paragraph={{ rows: 4 }} />
+      <div className="bg-card border-line shadow-card max-w-3xl rounded-lg border p-6">
+        <Skeleton active paragraph={{ rows: 3 }} />
       </div>
     );
   }
+
+  const full = fields.length >= MAX_ORDER_NOTIFY_EMAILS;
 
   return (
     <>
@@ -124,61 +133,81 @@ export default function NotificationSettingsPage() {
         }
       />
 
-      <form onSubmit={onSubmit}>
-        <section className="bg-card border-line shadow-card space-y-4 rounded-lg border p-4">
-          <div>
-            <h3 className="text-fg font-semibold">Email báo đơn mới</h3>
-            <p className="text-muted text-sm">
-              Gửi mỗi khi khách đặt đơn online, kèm link mở đơn trong admin. Tối
-              đa {MAX_ORDER_NOTIFY_EMAILS} địa chỉ. Để trống danh sách nếu không
-              muốn nhận.
-            </p>
-          </div>
+      <form onSubmit={onSubmit} className="max-w-3xl space-y-3">
+        <section className="bg-card border-line shadow-card divide-line divide-y overflow-hidden rounded-lg border">
+          <SectionLabel>
+            <span>Email báo đơn mới</span>
+            <span className="tabular-nums">
+              {fields.length}/{MAX_ORDER_NOTIFY_EMAILS}
+            </span>
+          </SectionLabel>
 
           {fields.length === 0 ? (
-            <p className="text-muted text-sm italic">
+            <p className="text-muted px-4 py-3 text-sm italic">
               Chưa có email nào — sẽ không gửi thông báo.
             </p>
           ) : null}
 
           {fields.map((field, index) => (
-            <div key={field.id} className="flex items-start gap-2">
-              <div className="min-w-0 flex-1">
-                <TextField
-                  name={`orderNotifyEmails.${index}.value`}
-                  control={control}
-                  label={`Email ${index + 1}`}
-                  placeholder="order@d-techjp.com"
-                  disabled={submitting}
-                  rules={{
-                    required: "Vui lòng nhập email hoặc xoá dòng này",
-                    pattern: {
-                      value: EMAIL_PATTERN,
-                      message: "Email không hợp lệ",
-                    },
-                  }}
-                />
-              </div>
-              <Button
-                type="text"
-                danger
-                className="mt-7"
-                aria-label={`Xoá email ${index + 1}`}
-                icon={<Trash2 size={16} />}
-                disabled={submitting}
-                onClick={() => remove(index)}
-              />
-            </div>
+            <Controller
+              key={field.id}
+              name={`orderNotifyEmails.${index}.value`}
+              control={control}
+              rules={{
+                required: "Nhập email hoặc xoá dòng này",
+                pattern: { value: EMAIL_PATTERN, message: "Email không hợp lệ" },
+              }}
+              render={({ field: input, fieldState }) => (
+                <div className="px-4 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      {...input}
+                      prefix={<Mail size={14} className="text-muted" />}
+                      placeholder="order@d-techjp.com"
+                      status={fieldState.error ? "error" : undefined}
+                      disabled={submitting}
+                      aria-label={`Email ${index + 1}`}
+                    />
+                    <Button
+                      type="text"
+                      danger
+                      aria-label={`Xoá email ${index + 1}`}
+                      icon={<Trash2 size={15} />}
+                      disabled={submitting}
+                      onClick={() => remove(index)}
+                    />
+                  </div>
+                  {fieldState.error ? (
+                    <p className="text-danger mt-1 text-xs">
+                      {fieldState.error.message}
+                    </p>
+                  ) : null}
+                </div>
+              )}
+            />
           ))}
 
-          <Button
-            icon={<Plus size={16} />}
-            disabled={submitting || fields.length >= MAX_ORDER_NOTIFY_EMAILS}
-            onClick={() => append({ value: "" })}
-          >
-            Thêm email
-          </Button>
+          <div className="px-4 py-2">
+            <Button
+              type="link"
+              size="small"
+              className="!px-0"
+              icon={<Plus size={14} />}
+              disabled={submitting || full}
+              onClick={() => append({ value: "" })}
+            >
+              {full
+                ? `Tối đa ${MAX_ORDER_NOTIFY_EMAILS} email`
+                : "Thêm email"}
+            </Button>
+          </div>
         </section>
+
+        <p className="text-muted flex items-start gap-1.5 text-xs">
+          <Info size={13} className="mt-px shrink-0" />
+          Gửi mỗi khi khách đặt đơn online, kèm link mở đơn trong admin. Đơn bán
+          tại quầy không gửi.
+        </p>
       </form>
     </>
   );

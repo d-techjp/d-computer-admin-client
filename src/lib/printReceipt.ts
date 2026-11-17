@@ -15,7 +15,7 @@ const PAYMENT_LABEL_JA: Record<PaymentMethod, string> = {
   bank_transfer: "銀行振込",
   credit_card: "クレジットカード",
   e_wallet: "電子マネー",
-  stripe: "クレジットカード / PayPay",
+  stripe: "オンライン決済",
   stripe_terminal: "クレジットカード",
   cash: "現金",
 };

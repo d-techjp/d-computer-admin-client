@@ -113,7 +113,7 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   bank_transfer: "Chuyển khoản",
   credit_card: "Thẻ tín dụng",
   e_wallet: "Ví điện tử",
-  stripe: "Thẻ / PayPay (Stripe)",
+  stripe: "Thanh toán online (Stripe)",
   stripe_terminal: "Quẹt thẻ tại quầy (POS)",
   cash: "Tiền mặt",
 };

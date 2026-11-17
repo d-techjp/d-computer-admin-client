@@ -65,6 +65,7 @@ export const routes = {
 
   settings: {
     notifications: "/settings/notifications",
+    payments: "/settings/payments",
   },
 
   auth: {
