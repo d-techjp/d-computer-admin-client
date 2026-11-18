@@ -203,7 +203,10 @@ export function updateOrderPaymentStatus(
 export interface OrderReceipt {
   shop: {
     name: string;
+    /** Số di động */
     phone: string;
+    /** Rỗng khi chưa có hotline */
+    hotline: string;
     address: string;
     /** Rỗng khi cửa hàng chưa đăng ký インボイス */
     invoiceRegistrationNumber?: string;
@@ -222,6 +225,7 @@ export function fetchOrderReceipt(id: string): Promise<OrderReceipt> {
       shop: {
         name: asString(shop.name),
         phone: asString(shop.phone),
+        hotline: asString(shop.hotline),
         address: asString(shop.address),
         invoiceRegistrationNumber: asOptionalString(
           shop.invoiceRegistrationNumber,

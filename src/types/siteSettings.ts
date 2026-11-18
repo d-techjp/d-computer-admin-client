@@ -27,7 +27,10 @@ export interface FooterColumn {
 
 export interface SiteSettings {
   companyName: string;
+  /** Số di động */
   phone: string;
+  /** Hotline (số cố định / tổng đài); rỗng = chưa có, chỉ hiện số di động */
+  hotline: string;
   address: string;
   /** Email hỗ trợ: Reply-To của mail gửi khách + in ở footer mail; rỗng = không có */
   supportEmail: string;

@@ -39,6 +39,7 @@ export interface FooterColumnPayload {
 export interface SiteSettingsPayload {
   companyName?: string;
   phone?: string;
+  hotline?: string;
   address?: string;
   supportEmail?: string;
   invoiceRegistrationNumber?: string;
@@ -79,6 +80,7 @@ export function toSiteSettings(value: unknown): SiteSettings {
   return {
     companyName: asString(record.companyName),
     phone: asString(record.phone),
+    hotline: asString(record.hotline),
     address: asString(record.address),
     supportEmail: asString(record.supportEmail),
     invoiceRegistrationNumber: asString(record.invoiceRegistrationNumber),
@@ -100,6 +102,7 @@ export function updateSiteSettings(payload: SiteSettingsPayload) {
       ...(payload.invoiceRegistrationNumber !== undefined && {
         invoiceRegistrationNumber: payload.invoiceRegistrationNumber,
       }),
+      ...(payload.hotline !== undefined && { hotline: payload.hotline }),
       ...(payload.supportEmail !== undefined && {
         supportEmail: payload.supportEmail,
       }),

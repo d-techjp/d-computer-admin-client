@@ -29,6 +29,7 @@ interface SocialLinkFormValue {
 interface SiteInfoFormValues {
   companyName: string;
   phone: string;
+  hotline: string;
   address: string;
   supportEmail: string;
   invoiceRegistrationNumber: string;
@@ -40,6 +41,7 @@ function toFormValues(settings: SiteSettings): SiteInfoFormValues {
   return {
     companyName: settings.companyName,
     phone: settings.phone,
+    hotline: settings.hotline,
     address: settings.address,
     supportEmail: settings.supportEmail,
     invoiceRegistrationNumber: settings.invoiceRegistrationNumber,
@@ -67,6 +69,7 @@ function toFormValues(settings: SiteSettings): SiteInfoFormValues {
 const EMPTY_FORM: SiteInfoFormValues = {
   companyName: "",
   phone: "",
+  hotline: "",
   address: "",
   supportEmail: "",
   invoiceRegistrationNumber: "",
@@ -131,6 +134,7 @@ export default function SiteInfoPage() {
       const updated = await updateSiteSettings({
         companyName: values.companyName,
         phone: values.phone,
+        hotline: values.hotline.trim(),
         address: values.address,
         supportEmail: values.supportEmail.trim().toLowerCase(),
         invoiceRegistrationNumber: values.invoiceRegistrationNumber
@@ -191,15 +195,26 @@ export default function SiteInfoPage() {
             rules={{ required: "Vui lòng nhập tên công ty" }}
           />
 
-          <TextField
-            name="phone"
-            control={control}
-            label="Hotline"
-            required
-            disabled={submitting}
-            helpText="Số điện thoại liên hệ hiển thị ở footer"
-            rules={{ required: "Vui lòng nhập số điện thoại" }}
-          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <TextField
+              name="hotline"
+              control={control}
+              label="Hotline"
+              placeholder="06-1234-5678"
+              disabled={submitting}
+              helpText="Số chính, hiện trước. Để trống nếu chưa có"
+            />
+            <TextField
+              name="phone"
+              control={control}
+              label="Di động"
+              placeholder="080-1234-5678"
+              required
+              disabled={submitting}
+              helpText="Hiện kèm nhãn 携帯 ở website, mail, bill"
+              rules={{ required: "Vui lòng nhập số di động" }}
+            />
+          </div>
 
           <TextField
             name="supportEmail"

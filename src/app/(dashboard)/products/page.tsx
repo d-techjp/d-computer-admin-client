@@ -427,16 +427,20 @@ export default function ProductsPage() {
                   </Link>
                   <ProductTypeTag type={record.productType} />
                 </div>
-                {/* Master không còn SKU — một phiên bản thì hiện SKU của nó,
+                {/* Trạng thái nằm trong cột ghim bên trái chứ không ở cột riêng:
+                    màn hình hẹp bảng phải cuộn ngang, cột riêng bị đẩy khuất nên
+                    không nhìn ra sản phẩm đang bán hay chưa.
+                    Master không còn SKU — một phiên bản thì hiện SKU của nó,
                     nhiều phiên bản thì hiện số lượng để khỏi chọn bừa một cái */}
-                <div className="text-muted text-xs">
+                <div className="text-muted mt-0.5 flex min-w-0 items-center gap-1.5 text-xs [&_.ant-tag]:me-0">
+                  <ProductStatusTag status={record.status} />
                   {record.hasVariants ? (
                     <span className="inline-flex items-center gap-1">
                       <Layers size={12} />
                       {formatNumber(record.variantCount || 0)} phiên bản
                     </span>
                   ) : (
-                    (defaultVariant?.sku ?? "—")
+                    <span className="truncate">{defaultVariant?.sku ?? "—"}</span>
                   )}
                 </div>
               </div>
@@ -482,13 +486,6 @@ export default function ProductsPage() {
             </span>
           );
         },
-      },
-      {
-        title: "Trạng thái",
-        dataIndex: "status",
-        width: 120,
-        align: "center",
-        render: (status: Product["status"]) => <ProductStatusTag status={status} />,
       },
       {
         title: "Thao tác",

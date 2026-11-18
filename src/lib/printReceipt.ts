@@ -41,6 +41,20 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
+/**
+ * Bill khổ hẹp nên mỗi số một dòng: hotline là số chính (TEL), di động gắn nhãn
+ * 携帯. Chưa có hotline thì in số di động dưới nhãn TEL như trước.
+ */
+function shopPhoneLines(shop: OrderReceipt["shop"]) {
+  const lines = shop.hotline
+    ? [`TEL ${shop.hotline}`, shop.phone ? `携帯 ${shop.phone}` : ""]
+    : [shop.phone ? `TEL ${shop.phone}` : ""];
+  return lines
+    .filter(Boolean)
+    .map((line) => `<div class="muted">${escapeHtml(line)}</div>`)
+    .join("");
+}
+
 function row(label: string, value: string, className = "") {
   return `<div class="row ${className}"><span>${label}</span><span>${value}</span></div>`;
 }
@@ -121,7 +135,7 @@ export function buildReceiptHtml(
   <div class="center">
     <div class="shop">${escapeHtml(shop.name)}</div>
     ${shop.address ? `<div class="muted">${escapeHtml(shop.address)}</div>` : ""}
-    ${shop.phone ? `<div class="muted">TEL ${escapeHtml(shop.phone)}</div>` : ""}
+    ${shopPhoneLines(shop)}
     ${
       shop.invoiceRegistrationNumber
         ? `<div class="muted">登録番号 ${escapeHtml(shop.invoiceRegistrationNumber)}</div>`
